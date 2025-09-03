@@ -2,12 +2,11 @@
 
 <img src="https://media2.giphy.com/media/26ufp2LYURTvL5PRS/giphy.gif" width="100" align="right">
 
-Generate realistic, human-like mouse movement data between coordinates or navigate between elements with puppeteer
-like the definitely-not-robot you are.
+Генерируйте реалистичные, человекоподобные траектории движения мыши между координатами или перемещайтесь между элементами с помощью Puppeteer — как будто вы точно не робот.
 
-> Oh yeah? Could a robot do _**this?**_
+> Ага? А робот смог бы **вот так?**_
 
-## Installation
+## Установка
 
 ```sh
 yarn add ghost-cursor
@@ -17,8 +16,8 @@ or with npm
 npm install ghost-cursor
 ```
 
-## Usage
-Generating movement data between 2 coordinates.
+## Использование
+Генерация данных движения между двумя координатами.
 
 ```js
 import { path } from "ghost-cursor"
@@ -40,7 +39,7 @@ const route = path(from, to)
  */
 ```
 
-Generating movement data between 2 coordinates with timestamps.
+Генерация данных движения между двумя координатами с метками времени.
 ```js
 import { path } from "ghost-cursor"
 
@@ -62,8 +61,7 @@ const route = path(from, to, { useTimestamps: true })
 ```
 
 
-Usage with puppeteer:
-
+Использование с Puppeteer:
 ```js
 import { createCursor } from "ghost-cursor"
 import puppeteer from "puppeteer"
@@ -82,166 +80,172 @@ const run = async (url) => {
 }
 ```
 
-### Puppeteer-specific behavior
-* `cursor.move()` will automatically overshoot or slightly miss and re-adjust for elements that are too far away
-from the cursor's starting point.
-* When moving over objects, a random coordinate that's within the element will be selected instead of
-hovering over the exact center of the element.
-* The speed of the mouse will take the distance and the size of the element you're clicking on into account.
+### Поведение, специфичное для Puppeteer
+* `cursor.move()` автоматически будет немного «перелетать» цель или слегка промахиваться и корректировать позицию заново для элементов, которые находятся слишком далеко от начальной точки курсора.
+* При наведении на объекты выбирается случайная координата **внутри** элемента, а не точный центр.
+* Скорость движения мыши учитывает расстояние до цели и размер элемента, по которому вы кликаете.
 
 <br>
 
 ![ghost-cursor in action](https://cdn.discordapp.com/attachments/418699380833648644/664110683054538772/acc_gen.gif)
 
-> Ghost cursor in action on a form
+> Ghost Cursor в работе на форме
 
-## Methods
+## Методы
 
 #### `createCursor(page: puppeteer.Page, start?: Vector, performRandomMoves?: boolean, defaultOptions?: DefaultOptions, visible?: boolean = false): GhostCursor`
 
-Creates the ghost cursor. Returns cursor action functions described below.
+Создаёт «Ghost Cursor». Возвращает функции действий курсора, описанные ниже.
 
-- **page:** Puppeteer `page`.
-- **start (optional):** Cursor start position. Default is `{ x: 0, y: 0 }`.
-- **performRandomMoves (optional):** Initially perform random movements. Default is `false`.
-- **defaultOptions (optional):** Set custom default options for `click`, `move`, `moveTo`, and `randomMove` functions. Default values are described below.
-- **visible (optional):** Make the cursor visible, using `installMouseHelper()`. Default is `false`.
+* **page:** Экземпляр Puppeteer `page`.
+* **start (необязательно):** Начальная позиция курсора. По умолчанию `{ x: 0, y: 0 }`.
+* **performRandomMoves (необязательно):** Сразу выполнять случайные движения. По умолчанию `false`.
+* **defaultOptions (необязательно):** Пользовательские значения по умолчанию для функций `click`, `move`, `moveTo` и `randomMove`. Значения по умолчанию описаны ниже.
+* **visible (необязательно):** Сделать курсор видимым с помощью `installMouseHelper()`. По умолчанию `false`.
+`false`.
  
 #### `toggleRandomMove(random: boolean): void`
 
-Toggles random mouse movements on or off.
+Включает или отключает случайные движения мыши.
 
 #### `click(selector?: string | ElementHandle, options?: ClickOptions): Promise<void>`
 
-Simulates a mouse click at the specified selector or element.
+Симулирует клик мышью по указанному селектору или элементу.
 
-- **selector (optional):** CSS selector or ElementHandle to identify the target element.
-- **options (optional):** Additional options for clicking. **Extends the `options` of the `move`, `scrollIntoView`, and `getElement` functions (below)**
-  - `hesitate (number):` Delay before initiating the click action in milliseconds. Default is `0`.
-  - `waitForClick (number):` Delay between mousedown and mouseup in milliseconds. Default is `0`.
-  - `moveDelay (number):` Delay after moving the mouse in milliseconds. Default is `2000`. If `randomizeMoveDelay=true`, delay is randomized from 0 to `moveDelay`.
-  - `button (MouseButton):` Mouse button to click. Default is `left`.
-  - `clickCount (number):` Number of times to click the button. Default is `1`.
+* **selector (необязательно):** CSS‑селектор или `ElementHandle` целевого элемента.
+* **options (необязательно):** Дополнительные параметры клика. **Расширяет **`** функций **`**, **`** и **`** (см. ниже)**
+
+  * `hesitate (number):` Пауза перед началом клика в миллисекундах. По умолчанию `0`.
+  * `waitForClick (number):` Пауза между `mousedown` и `mouseup` в миллисекундах. По умолчанию `0`.
+  * `moveDelay (number):` Задержка после перемещения мыши в миллисекундах. По умолчанию `2000`. Если `randomizeMoveDelay=true`, задержка рандомизируется от 0 до `moveDelay`.
+  * `button (MouseButton):` Кнопка мыши. По умолчанию `left`.
+  * `clickCount (number):` Количество кликов. По умолчанию `1`.
 
 #### `move(selector: string | ElementHandle, options?: MoveOptions): Promise<void>`
 
-Moves the mouse to the specified selector or element.
+Перемещает мышь к указанному селектору или элементу.
 
-- **selector:** CSS selector or ElementHandle to identify the target element.
-- **options (optional):** Additional options for moving. **Extends the `options` of the `scrollIntoView` and `getElement` functions (below)**
-  - `paddingPercentage (number):` Percentage of padding to be added inside the element when determining the target point. Default is `0` (may move to anywhere within the element). `100` will always move to center of element.
-  - `destination (Vector):` Destination to move the cursor to, relative to the top-left corner of the element. If specified, `paddingPercentage` is not used. If not specified (default), destination is random point within the `paddingPercentage`.
-  - `moveDelay (number):` Delay after moving the mouse in milliseconds. Default is `0`. If `randomizeMoveDelay=true`, delay is randomized from 0 to `moveDelay`.
-  - `randomizeMoveDelay (boolean):` Randomize delay between actions from `0` to `moveDelay`. Default is `true`.
-  - `maxTries (number):` Maximum number of attempts to mouse-over the element. Default is `10`.
-  - `moveSpeed (number):` Speed of mouse movement. Default is random.
-  - `overshootThreshold (number):` Distance from current location to destination that triggers overshoot to occur. (Below this distance, no overshoot will occur). Default is `500`.
+* **selector:** CSS‑селектор или `ElementHandle` целевого элемента.
+* **options (необязательно):** Дополнительные параметры перемещения. **Расширяет **`** функций **`** и **\`\`** (см. ниже)**
+
+  * `paddingPercentage (number):` Процент внутреннего «поля» внутри элемента при выборе точки назначения. По умолчанию `0` (может переместиться в любую точку элемента). Значение `100` всегда ведёт к центру элемента.
+  * `destination (Vector):` Точка назначения относительно левого верхнего угла элемента. Если указано, `paddingPercentage` не используется. Если не указано (по умолчанию) — выбирается случайная точка с учётом `paddingPercentage`.
+  * `moveDelay (number):` Задержка после перемещения в мс. По умолчанию `0`. При `randomizeMoveDelay=true` — случайная от `0` до `moveDelay`.
+  * `randomizeMoveDelay (boolean):` Рандомизация задержки между действиями от `0` до `moveDelay`. По умолчанию `true`.
+  * `maxTries (number):` Максимум попыток навести курсор на элемент. По умолчанию `10`.
+  * `moveSpeed (number):` Скорость перемещения мыши. По умолчанию — случайная.
+  * `overshootThreshold (number):` Дистанция до точки назначения, при превышении которой включается «перелёт» (overshoot). Ниже порога «перелёта» не будет. По умолчанию `500`.
 
 #### `moveTo(destination: Vector, options?: MoveToOptions): Promise<void>`
 
-Moves the mouse to the specified destination point.
+Перемещает мышь к указанной точке назначения.
 
-- **destination:** An object with `x` and `y` coordinates representing the target position. For example, `{ x: 500, y: 300 }`.
-- **options (optional):** Additional options for moving.
-  - `moveSpeed (number):` Speed of mouse movement. Default is random.
-  - `moveDelay (number):` Delay after moving the mouse in milliseconds. Default is `0`. If `randomizeMoveDelay=true`, delay is randomized from 0 to `moveDelay`.
-  - `randomizeMoveDelay (boolean):` Randomize delay between actions from `0` to `moveDelay`. Default is `true`.
+* **destination:** Объект с координатами `x` и `y`, например `{ x: 500, y: 300 }`.
+* **options (необязательно):** Дополнительные параметры перемещения.
+
+  * `moveSpeed (number):` Скорость перемещения. По умолчанию — случайная.
+  * `moveDelay (number):` Задержка после перемещения, мс. По умолчанию `0`. При `randomizeMoveDelay=true` — случайная от `0` до `moveDelay`.
+  * `randomizeMoveDelay (boolean):` Рандомизация задержки между действиями. По умолчанию `true`.
 
 #### `moveBy(delta: Vector, options?: MoveToOptions): Promise<void>`
 
-Moves the mouse by a specified amount.
+Сдвигает мышь на заданное смещение.
 
-- **delta:** An object with `x` and `y` coordinates representing the distance to move. For example, `{ x: 10, y: 20 }`.
-- **options (optional):** Additional options for moving. Same as `moveTo` options
+* **delta:** Объект с `x` и `y`, например `{ x: 10, y: 20 }`.
+* **options (необязательно):** Те же параметры, что и у `moveTo`.
   
 #### `scrollIntoView(selector: string | ElementHandle, options?: ScrollIntoViewOptions) => Promise<void>`
 
-Scrolls the element into view. If already in view, no scroll occurs.
+Прокручивает страницу так, чтобы элемент оказался в области видимости. Если уже виден, прокрутки не будет.
 
-- **selector:** CSS selector or ElementHandle to identify the target element.
-- **options (optional):** Additional options for scrolling. **Extends the `options` of the `getElement` and `scroll` functions (below)**
-  - `scrollSpeed (number):` Scroll speed (when scrolling occurs). 0 to 100. 100 is instant. Default is `100`.
-  - `scrollDelay (number):` Time to wait after scrolling (when scrolling occurs). Default is `200`.
-  - `inViewportMargin (number):` Margin (in px) to add around the element when ensuring it is in the viewport. Default is `0`.
+* **selector:** CSS‑селектор или `ElementHandle` элемента.
+* **options (необязательно):** Дополнительные параметры. **Расширяет **`** функций **`** и **\`\`** (см. ниже)**
+
+  * `scrollSpeed (number):` Скорость прокрутки от 0 до 100. `100` — мгновенно. По умолчанию `100`.
+  * `scrollDelay (number):` Пауза после прокрутки (если прокрутка была). По умолчанию `200`.
+  * `inViewportMargin (number):` Отступ (в пикселях), добавляемый вокруг элемента при обеспечении его видимости. По умолчанию `0`.
 
 #### `scrollTo: (destination: Partial<Vector> | 'top' | 'bottom' | 'left' | 'right', options?: ScrollOptions) => Promise<void>`
 
-Scrolls to the specified destination point.
+Прокручивает к указанной точке назначения.
 
-- **destination:** An object with `x` and `y` coordinates representing the target position. For example, `{ x: 500, y: 300 }`. Can also be `"top"` or `"bottom"`.
-- **options (optional):** Additional options for scrolling. **Extends the `options` of the `scroll` function (below)**
+* **destination:** Объект с координатами `x` и `y`, например `{ x: 500, y: 300 }`. Также можно использовать строки: `"top"`, `"bottom"`, `"left"`, `"right"`.
+* **options (необязательно):** Дополнительные параметры прокрутки. **Расширяет **`** функции **`** (см. ниже)**
 
 #### `scroll: (delta: Partial<Vector>, options?: ScrollOptions) => Promise<void>`
 
-Scrolls the page the distance set by `delta`.
+Прокручивает страницу на расстояние, заданное `delta`.
 
-- **delta:** An object with `x` and `y` coordinates representing the distance to scroll from the current position.
-- **options (optional):** Additional options for scrolling.
-  - `scrollSpeed (number):` Scroll speed. 0 to 100. 100 is instant. Default is `100`.
-  - `scrollDelay (number):` Time to wait after scrolling. Default is `200`.
+* **delta:** Объект с `x` и/или `y` — смещение от текущей позиции.
+* **options (необязательно):** Дополнительные параметры.
+
+  * `scrollSpeed (number):` Скорость прокрутки 0–100. `100` — мгновенно. По умолчанию `100`.
+  * `scrollDelay (number):` Пауза после прокрутки. По умолчанию `200`.
 
 #### `mouseDown / mouseUp: (options?: MouseButtonOptions) => Promise<void>`
 
-Mouse button up or down.
+Нажатие/отжатие кнопки мыши.
 
-- **options (optional):** Additional options for mouse action.
-  - `button (MouseButton):` Mouse button to click. Default is `left`.
-  - `clickCount (number):` Number of times to click the button. Default is `1`.
+* **options (необязательно):** Параметры действия.
+
+  * `button (MouseButton):` Кнопка мыши. По умолчанию `left`.
+  * `clickCount (number):` Количество «кликов». По умолчанию `1`.
   
 #### `getElement(selector: string | ElementHandle, options?: GetElementOptions) => Promise<void>`
 
-Gets the element via a selector. Can use an XPath.
+Получает элемент по селектору. Можно использовать XPath.
 
-- **selector:** CSS selector or ElementHandle to identify the target element.
-- **options (optional):** Additional options.
-  - `waitForSelector (number):` Time to wait for the selector to appear in milliseconds. Default is to not wait for selector.
+* **selector:** CSS‑селектор или `ElementHandle` целевого элемента.
+* **options (необязательно):** Дополнительные параметры.
+
+  * `waitForSelector (number):` Время ожидания появления селектора в мс. По умолчанию ожидания нет.
 
 #### `getLocation(): Vector`
 
-Get current location of the cursor.
+Возвращает текущую позицию курсора.
 
-### Other Utility Methods
+### Прочие утилиты
 
 #### `installMouseHelper(page: Page): Promise<void>`
 
-Installs a mouse helper on the page, making the pointer visible. Gets executed in the `GhostCursor` initialization when passing `visible=true`. Use for debugging only.
+Устанавливает визуальный помощник курсора на страницу, делая указатель видимым. Вызывается автоматически в инициализации `GhostCursor`, если передать `visible=true`. Используйте только для отладки.
 
 #### `getRandomPagePoint(page: Page): Promise<Vector>`
 
-Gets a random point on the browser window.
+Возвращает случайную точку на окне браузера.
 
 #### `path(start: Vector, end: Vector | BoundingBox, options?: number | PathOptions): Vector[] | TimedVector[]`
 
-Generates a set of points for mouse movement between two coordinates.
+Генерирует набор точек для движения курсора между двумя координатами.
 
-- **start:** Starting point of the movement.
-- **end:** Ending point (or bounding box) of the movement.
-- **options (optional):** Additional options for generating the path. Can also be a number which will set `spreadOverride`.
-  - `spreadOverride (number):` Override the spread of the generated path.
-  - `moveSpeed (number):` Speed of mouse movement. Default is random.
-  - `useTimestamps (boolean):` Generate timestamps for each point based on the trapezoidal rule.
+* **start:** Начальная точка.
+* **end:** Конечная точка (или `BoundingBox`).
+* **options (необязательно):** Дополнительные параметры генерации пути. Может быть числом — тогда устанавливается `spreadOverride`.
 
-## How does it work
+  * `spreadOverride (number):` Переопределяет «разлёт» сгенерированной траектории.
+  * `moveSpeed (number):` Скорость движения. По умолчанию — случайная.
+  * `useTimestamps (boolean):` Генерировать метки времени для каждой точки на основе правила трапеций.
 
-Bezier curves do almost all the work here. They let us create an infinite amount of curves between any 2 points we want
-and they look quite human-like. (At least moreso than alternatives like perlin or simplex noise)
+## Как это работает
+
+Кривые Безье делают почти всю работу. Они позволяют создавать бесконечное количество кривых между любыми двумя точками — и выглядят довольно «по‑человечески» (по крайней мере, более естественно, чем альтернативы вроде шума Перлина или симплекс‑шума).
 
 ![](https://mamamoo.xetera.dev/😽🤵👲🧦👵.png)
 
-The magic comes from being able to set multiple points for the curve to go through. This is done by picking
-2 coordinates randomly in a limited area above and under the curve. 
+Магия в том, что можно задать несколько контрольных точек, через которые пойдёт кривая. Для этого случайным образом выбираются 2 координаты в ограниченной области над и под прямой между началом и концом.
 
 <img src="https://mamamoo.xetera.dev/🧣👎😠🧟✍.png" width="400">
 
-However, we don't want wonky looking cubic curves when using this method because nobody really moves their mouse
-that way, so only one side of the line is picked when generating random points.
+Однако нам не нужны странные «ломаные» кубические кривые — так мышью никто не двигает. Поэтому при генерации случайных точек выбирается только **одна** сторона линии.
 
 <img src="http://simonwallner.at/ext/fitts/shannon.png" width="250" align="right">
-When calculating how fast the mouse should be moving we use <a href="https://en.wikipedia.org/wiki/Fitts%27s_law">Fitts's Law</a>
-to determine the amount of points we should be returning relative to the width of the element being clicked on and the distance
-between the mouse and the object.
+При расчёте скорости движения мыши мы используем <a href="https://en.wikipedia.org/wiki/Fitts%27s_law">Fitts's закон</a>
+чтобы определить количество точек, которые следует возвращать в зависимости от ширины элемента, по которому производится клик, и расстояния между мышью и этим объектом.
 
-## To turn on logging, please set your DEBUG env variable like so:
+
+## Включение логирования
+
+Установите переменную окружения `DEBUG` следующим образом:
 
 - OSX: `DEBUG="ghost-cursor:*"`
 - Linux: `DEBUG="ghost-cursor:*"`

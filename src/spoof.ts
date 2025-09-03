@@ -1,3 +1,17 @@
+/**
+ * МОДУЛЬ ДЛЯ «ЧЕЛОВЕЧЕСКИХ» ДВИЖЕНИЙ КУРСОРА (Puppeteer)
+ *
+ * Идея простая: вы вызываете методы вроде move/click/scroll, а код ниже
+ * строит реалистичную траекторию (по кривой Безье), отправляет события
+ * в браузер через CDP и делает задержки, перелёты и т.п., чтобы поведение
+ * было похоже на действия настоящего пользователя.
+ *
+ * Подсказки для ориентирования в файле:
+ * - API курсора описано в интерфейсе GhostCursor (ниже по файлу).
+ * - createCursor(...) — фабрика, создающая объект курсора.
+ * - path(...) — генерация траектории между двумя точками.
+ * - moveMouse(...) — низкоуровневое воспроизведение «mouseMoved» по траектории.
+ */
 import type { ElementHandle, Page, BoundingBox, CDPSession, Protocol } from 'puppeteer'
 import debug from 'debug'
 import {
@@ -18,42 +32,43 @@ import { installMouseHelper } from './mouse-helper'
 
 export { installMouseHelper }
 
+// Логгер для предупреждений/отладки (включается переменной окружения DEBUG=ghost-cursor)
 const log = debug('ghost-cursor')
 
 export interface BoxOptions {
   /**
-   * Percentage of padding to be added inside the element when determining the target point.
-   * Example:
-   * - `0` = may be anywhere within the element.
-   * - `100` = will always be center of element.
+   * Процент отступа, добавляемого внутри элемента при определении целевой точки.
+   * Пример:
+   * - `0` = может быть где угодно внутри элемента.
+   * - `100` = всегда будет в центре элемента.
    * @default 0
    */
   readonly paddingPercentage?: number
   /**
-   * Destination to move the cursor to, relative to the top-left corner of the element.
-   * If specified, `paddingPercentage` is not used.
-   * If not specified (default), destination is random point within the `paddingPercentage`.
-   * @default undefined (random point)
+   * Точка назначения для перемещения курсора, относительно верхнего левого угла элемента.
+   * Если указано, `paddingPercentage` не используется.
+   * Если не указано (по умолчанию), точка назначения выбирается случайно внутри `paddingPercentage`.
+   * @default undefined (случайная точка)
    */
   readonly destination?: Vector
 }
 
 export interface GetElementOptions {
   /**
-   * Time to wait for the selector to appear in milliseconds.
-   * Default is to not wait for selector.
+   * Время ожидания появления селектора в миллисекундах.
+   * По умолчанию ожидание селектора не производится.
    */
   readonly waitForSelector?: number
 }
 
 export interface ScrollOptions {
   /**
-   * Scroll speed. 0 to 100. 100 is instant.
+   * Скорость прокрутки. От 0 до 100. 100 — мгновенно.
    * @default 100
    */
   readonly scrollSpeed?: number
   /**
-   * Time to wait after scrolling.
+   * Время ожидания после прокрутки.
    * @default 200
    */
   readonly scrollDelay?: number
@@ -61,18 +76,18 @@ export interface ScrollOptions {
 
 export interface ScrollIntoViewOptions extends ScrollOptions, GetElementOptions {
   /**
-   * Scroll speed (when scrolling occurs). 0 to 100. 100 is instant.
+   * Скорость прокрутки (когда прокрутка происходит). От 0 до 100. 100 — мгновенно.
    * @default 100
    */
   readonly scrollSpeed?: number
   /**
-   * Time to wait after scrolling (when scrolling occurs).
+   * Время ожидания после прокрутки (если прокрутка произошла).
    * @default 200
    */
   readonly scrollDelay?: number
   /**
-   * Margin (in px) to add around the element when ensuring it is in the viewport.
-   * (Does not take effect if CDP scroll fails.)
+   * Отступ (в пикселях), добавляемый вокруг элемента при обеспечении его видимости в области просмотра.
+   * (Не применяется, если прокрутка через CDP не удалась.)
    * @default 0
    */
   readonly inViewportMargin?: number
@@ -80,23 +95,22 @@ export interface ScrollIntoViewOptions extends ScrollOptions, GetElementOptions 
 
 export interface MoveOptions extends BoxOptions, ScrollIntoViewOptions, Pick<PathOptions, 'moveSpeed'> {
   /**
-   * Delay after moving the mouse in milliseconds. If `randomizeMoveDelay=true`, delay is randomized from 0 to `moveDelay`.
+   * Задержка после перемещения мыши в миллисекундах. Если `randomizeMoveDelay=true`, задержка выбирается случайным образом от 0 до `moveDelay`.
    * @default 0
    */
   readonly moveDelay?: number
   /**
-   * Randomize delay between actions from `0` to `moveDelay`. See `moveDelay` docs.
+   * Рандомизация задержки между действиями от `0` до `moveDelay`. См. документацию `moveDelay`.
    * @default true
    */
   readonly randomizeMoveDelay?: boolean
   /**
-   * Maximum number of attempts to mouse-over the element.
+   * Максимальное количество попыток навести курсор на элемент.
    * @default 10
    */
   readonly maxTries?: number
   /**
-   * Distance from current location to destination that triggers overshoot to
-   * occur. (Below this distance, no overshoot will occur).
+   * Расстояние от текущего местоположения до точки назначения, при котором срабатывает «перелёт». (Если расстояние меньше, «перелёт» не происходит).
    * @default 500
    */
   readonly overshootThreshold?: number
@@ -104,12 +118,12 @@ export interface MoveOptions extends BoxOptions, ScrollIntoViewOptions, Pick<Pat
 
 export interface ClickOptions extends MoveOptions {
   /**
-   * Delay before initiating the click action in milliseconds.
+   * Задержка перед началом действия клика в миллисекундах.
    * @default 0
    */
   readonly hesitate?: number
   /**
-   * Delay between mousedown and mouseup in milliseconds.
+   * Задержка между нажатием и отпусканием кнопки мыши в миллисекундах.
    * @default 0
    */
   readonly waitForClick?: number
@@ -129,17 +143,17 @@ export interface ClickOptions extends MoveOptions {
 
 export interface PathOptions {
   /**
-   * Override the spread of the generated path.
+   * Переопределяет разброс сгенерированного пути.
    */
   readonly spreadOverride?: number
   /**
-   * Speed of mouse movement.
-   * Default is random.
+   * Скорость движения мыши.
+   * По умолчанию случайная.
    */
   readonly moveSpeed?: number
 
   /**
-   * Generate timestamps for each point in the path.
+   * Генерация временных меток для каждой точки пути.
    */
   readonly useTimestamps?: boolean
 }
@@ -163,110 +177,118 @@ export type ScrollToDestination = Partial<Vector> | 'top' | 'bottom' | 'left' | 
 export type MouseButtonOptions = Pick<ClickOptions, 'button' | 'clickCount'>
 
 /**
- * Default options for cursor functions.
+ * Параметры по умолчанию для функций курсора.
  */
 export interface DefaultOptions {
   /**
-   * Default options for the `randomMove` function that occurs when `performRandomMoves=true`
+   * Параметры по умолчанию для функции `randomMove`, которая выполняется, если `performRandomMoves=true`
    * @default RandomMoveOptions
    */
   randomMove?: RandomMoveOptions
   /**
-   * Default options for the `move` function
+   * Параметры по умолчанию для функции `move`
    * @default MoveOptions
    */
   move?: MoveOptions
   /**
-   * Default options for the `moveTo` function
+   * Параметры по умолчанию для функции `moveTo`
    * @default MoveToOptions
    */
   moveTo?: MoveToOptions
   /**
-   * Default options for the `click` function
+   * Параметры по умолчанию для функции `click`
    * @default ClickOptions
    */
   click?: ClickOptions
   /**
-  * Default options for the `scrollIntoView`, `scrollTo`, and `scroll` functions
+  * Параметры по умолчанию для функций `scrollIntoView`, `scrollTo`, и `scroll`
   * @default ScrollIntoViewOptions
   */
   scroll?: ScrollOptions & ScrollIntoViewOptions
   /**
-   * Default options for the `getElement` function
+   * Параметры по умолчанию для функции `getElement`
    * @default GetElementOptions
    */
   getElement?: GetElementOptions
 }
 
+/**
+ * Публичное API курсора, которым пользуется внешний код.
+ * Каждая операция внутри аккуратно синхронизирована и использует CDP.
+ */
 export interface GhostCursor {
-  /** Toggles random mouse movements on or off. */
+  /** Включает или отключает случайные движения мыши. */
   toggleRandomMove: (random: boolean) => void
-  /** Simulates a mouse click at the specified selector or element. */
+  /** Симулирует клик мыши по указанному селектору или элементу. */
   click: (
     selector?: string | ElementHandle,
     /** @default defaultOptions.click */
     options?: ClickOptions
   ) => Promise<void>
-  /** Moves the mouse to the specified selector or element. */
+  /** Перемещает курсор к указанному селектору или элементу. */
   move: (
     selector: string | ElementHandle,
     /** @default defaultOptions.move */
     options?: MoveOptions
   ) => Promise<void>
-  /** Moves the mouse to the specified destination point. */
+  /** Перемещает курсор к указанной точке назначения. */
   moveTo: (
     destination: Vector,
     /** @default defaultOptions.moveTo */
     options?: MoveToOptions) => Promise<void>
-  /** Moves the mouse by a specified amount */
+  /** Перемещает курсор на указанное расстояние */
   moveBy: (
     delta: Partial<Vector>,
     options?: MoveToOptions
   ) => Promise<void>
-  /** Scrolls the element into view. If already in view, no scroll occurs. */
+  /** Доводит элемент до видимой области. Если элемент уже виден — ничего не делает. */
   scrollIntoView: (
     selector: ElementHandle,
     /** @default defaultOptions.scroll */
     options?: ScrollIntoViewOptions) => Promise<void>
-  /** Scrolls to the specified destination point. */
+  /** Прокручивает документ к указанной точке/краю. */
   scrollTo: (
     destination: ScrollToDestination,
     /** @default defaultOptions.scroll */
     options?: ScrollOptions) => Promise<void>
-  /** Scrolls the page the distance set by `delta`. */
+  /** Прокручивает страницу на заданную `delta`. */
+  // RU: Прокручивает страницу на заданную дельту по осям X/Y.
   scroll: (
     delta: Partial<Vector>,
     /** @default defaultOptions.scroll */
     options?: ScrollOptions) => Promise<void>
-  /** Mouse button down */
+  /** Нажатие кнопки мыши */
   mouseDown: (options?: MouseButtonOptions) => Promise<void>
-  /** Mouse button up (release) */
+  /** Отпускание кнопки мыши */
   mouseUp: (options?: MouseButtonOptions) => Promise<void>
-  /** Gets the element via a selector. Can use an XPath. */
+  /** Получает элемент по селектору; поддерживается XPath. */
   getElement: (
     selector: string | ElementHandle,
     /** @default defaultOptions.getElement */
     options?: GetElementOptions) => Promise<ElementHandle<Element>>
-  /** Get current location of the cursor. */
+  /** Получает текущее положение курсора. */
   getLocation: () => Vector
   /**
-    * Make the cursor no longer visible.
-    * Defined only if `visible=true` was passed.
+    * Делает курсор «невидимым».
+    * Если при создании курсора включали `visible=true`.
     */
   removeMouseHelper?: Promise<() => Promise<void>>
 }
 
-/** Helper function to wait a specified number of milliseconds  */
+/**
+ * Простой helper: неблокирующая пауза на указанное количество миллисекунд.
+ */
 const delay = async (ms: number): Promise<void> => {
   if (ms < 1) return
   return await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
- * Calculate the amount of time needed to move from (x1, y1) to (x2, y2)
- * given the width of the element being clicked on
- * https://en.wikipedia.org/wiki/Fitts%27s_law
+ * Рассчитывает время, необходимое для перемещения от (x1, y1) до (x2, y2),
+ * учитывая ширину элемента, на который производится клик.
+ * https://ru.wikipedia.org/wiki/Закон_Фиттса
  */
+// Оценка сложности/времени по закону Фиттса: дальше/уже — дольше
 const fitts = (distance: number, width: number): number => {
   const a = 0
   const b = 2
@@ -274,7 +296,7 @@ const fitts = (distance: number, width: number): number => {
   return a + b * id
 }
 
-/** Get a random point on a box */
+/** Случайная точка внутри прямоугольника элемента (учитывается paddingPercentage) */
 const getRandomBoxPoint = (
   { x, y, width, height }: BoundingBox,
   options?: Pick<BoxOptions, 'paddingPercentage'>
@@ -297,13 +319,13 @@ const getRandomBoxPoint = (
   }
 }
 
-/** The function signature to access the internal CDP client changed in puppeteer 14.4.1 */
+/** Доступ к CDP-клиенту Puppeteer (учтены различия версий 14.4.1+) */
 export const getCDPClient = (page: Page): CDPSession =>
   typeof (page as any)._client === 'function'
     ? (page as any)._client()
     : (page as any)._client
 
-/** Get a random point on a browser window */
+/** Случайная точка внутри окна браузера (для случайных «бродящих» движений) */
 export const getRandomPagePoint = async (page: Page): Promise<Vector> => {
   const targetId: string = (page.target() as any)._targetId
   const window = await getCDPClient(page).send('Browser.getWindowForTarget', { targetId })
@@ -315,7 +337,7 @@ export const getRandomPagePoint = async (page: Page): Promise<Vector> => {
   })
 }
 
-/** Get correct position of Inline elements (elements like `<a>`). Has fallback. */
+/** Точное получение рамки inline‑элементов через CDP; есть надёжные фоллбеки */
 export const getElementBox = async (
   page: Page,
   element: ElementHandle,
@@ -367,15 +389,21 @@ export const getElementBox = async (
   }
 }
 
-/** Generates a set of points for mouse movement between two coordinates. */
+/**
+ * Генерация траектории движения:
+ * - строим кривую Безье между start и end;
+ * - считаем длину пути и «сложность» цели (Fitts);
+ * - подбираем число шагов (steps): чем сложнее/дальше, тем больше точек;
+ * - возвращаем массив точек, по которым потом пройдётся курсор.
+ */
 export function path (
   start: Vector,
   end: Vector | BoundingBox,
   /**
-   * Additional options for generating the path.
-   * Can also be a number which will set `spreadOverride`.
+   * Дополнительные параметры для генерации траектории.
+   * Может быть числом, которое задаёт `spreadOverride`.
    */
-  // TODO: remove number arg in next major version change, fine to just allow `spreadOverride` in object.
+  // TODO: удалить аргумент number в следующем мажорном изменении версии, достаточно просто разрешить `spreadOverride` в объекте.
   options?: number | PathOptions): Vector[] | TimedVector[] {
   const optionsResolved: PathOptions = typeof options === 'number'
     ? { spreadOverride: options }
@@ -387,6 +415,7 @@ export function path (
   const curve = bezierCurve(start, end, optionsResolved.spreadOverride)
   const length = curve.length() * 0.8
 
+  // Чем больше moveSpeed, тем быстрее движение (меньше времени на путь)
   const speed = optionsResolved.moveSpeed !== undefined && optionsResolved.moveSpeed > 0
     ? (25 / optionsResolved.moveSpeed)
     : Math.random()
@@ -396,6 +425,7 @@ export function path (
   return clampPositive(re, optionsResolved)
 }
 
+// Не допускаем отрицательных координат; при необходимости добавляем метки времени
 const clampPositive = (vectors: Vector[], options?: PathOptions): Vector[] | TimedVector[] => {
   const clampedVectors = vectors.map((vector) => ({
     x: Math.max(0, vector.x),
@@ -405,6 +435,7 @@ const clampPositive = (vectors: Vector[], options?: PathOptions): Vector[] | Tim
   return options?.useTimestamps === true ? generateTimestamps(clampedVectors, options) : clampedVectors
 }
 
+// Генерируем «правдоподобные» временные метки между соседними точками пути
 const generateTimestamps = (vectors: Vector[], options?: PathOptions): TimedVector[] => {
   const speed = options?.moveSpeed ?? (Math.random() * 0.5 + 0.5)
   const timeToMove = (P0: Vector, P1: Vector, P2: Vector, P3: Vector, samples: number): number => {
@@ -417,7 +448,7 @@ const generateTimestamps = (vectors: Vector[], options?: PathOptions): TimedVect
       total += (v1 + v2) * dt / 2
     }
 
-    return Math.round(total / speed)
+    return Math.round(total / speed) // миллисекунды на участок
   }
 
   const timedVectors: TimedVector[] = []
@@ -454,6 +485,9 @@ const intersectsElement = (vec: Vector, box: BoundingBox): boolean => {
   )
 }
 
+/**
+ * Фабрика курсора: хранит текущее положение и возвращает набор действий.
+ */
 export const createCursor = (
   page: Page,
   /**
@@ -462,31 +496,34 @@ export const createCursor = (
    */
   start: Vector = origin,
   /**
-   * Initially perform random movements.
-   * If `move`,`click`, etc. is performed, these random movements end.
+   * Изначально выполняет случайные движения.
+   * Если выполняются `move`, `click` и т.п., эти случайные движения прекращаются.
    * @default false
    */
   performRandomMoves: boolean = false,
   /**
-   * Default options for cursor functions.
+   * Параметры по умолчанию для функций курсора.
    */
   defaultOptions: DefaultOptions = {},
   /**
-   * Whether cursor should be made visible using `installMouseHelper`.
+   * Должен ли курсор быть видимым с использованием `installMouseHelper`.
    * @default false
    */
   visible: boolean = false
 ): GhostCursor => {
-  // this is kind of arbitrary, not a big fan but it seems to work
+  // Параметры «перелёта»: сначала пролетаем чуть дальше цели (радиус),
+  // потом возвращаемся более узкой дугой (spread), чтобы имитировать инерцию руки
   const OVERSHOOT_SPREAD = 10
   const OVERSHOOT_RADIUS = 120
-  /** Location of the cursor. */
+  /** Текущее положение курсора (обновляется после каждого шага) */
   let location: Vector = start
 
   // Initial state: mouse is not moving
   let moving: boolean = false
 
-  /** Move the mouse to a point, getting the vectors via `path(previous, newLocation, options)`  */
+  /**
+   * Отправка «mouseMoved» по всем точкам траектории, с обработкой ошибок.
+   */
   const moveMouse = async (
     newLocation: Vector | BoundingBox,
     options?: PathOptions,
@@ -497,7 +534,7 @@ export const createCursor = (
 
     for (const v of vectors) {
       try {
-        // In case this is called from random mouse movements and the users wants to move the mouse, abort
+        // Если это вызвано случайными движениями мыши, и пользователь хочет переместить мышь, прервать выполнение
         if (abortOnMove && moving) {
           return
         }
@@ -522,7 +559,11 @@ export const createCursor = (
     }
   }
 
-  /** Start random mouse movements. Function recursively calls itself. */
+  /**
+   * Случайные перемещения курсора ("брожение"): раз в moveDelay берём
+   * случайную точку в пределах окна и плавно перемещаемся к ней. Как только
+   * начинается явное действие (move/click), «брожение» прекращается.
+   */
   const randomMove = async (options?: RandomMoveOptions): Promise<void> => {
     const optionsResolved = {
       moveDelay: 2000,
@@ -568,17 +609,19 @@ export const createCursor = (
   }
 
   const actions: GhostCursor = {
-    /** Toggles random mouse movements on or off. */
+    /** Включает или отключает случайные движения мыши. */
     toggleRandomMove (random: boolean): void {
       moving = !random
     },
 
-    /** Get current location of the cursor. */
+    /** Получить текущее местоположение курсора. */
     getLocation (): Vector {
       return location
     },
 
-    /** Simulates a mouse click at the specified selector or element. */
+    /**
+     * Клик по селектору/элементу: подвод курсора (при необходимости) → down → up.
+     */
     async click (
       selector?: string | ElementHandle,
       options?: ClickOptions
@@ -600,7 +643,7 @@ export const createCursor = (
       if (selector !== undefined) {
         await actions.move(selector, {
           ...optionsResolved,
-          // apply moveDelay after click, but not after actual move
+            // применить задержку moveDelay после клика, но не после фактического перемещения
           moveDelay: 0
         })
       }
@@ -620,17 +663,17 @@ export const createCursor = (
       actions.toggleRandomMove(wasRandom)
     },
 
-    /** Mouse button down */
+    /** Нажатие кнопки мыши */
     async mouseDown (options?: MouseButtonOptions): Promise<void> {
       await mouseButtonAction('mousePressed', options)
     },
 
-    /** Mouse button up (release) */
+    /** Отпускание кнопки мыши */
     async mouseUp (options?: MouseButtonOptions): Promise<void> {
       await mouseButtonAction('mouseReleased', options)
     },
 
-    /** Moves the mouse to the specified selector or element. */
+    /** Перемещение к селектору/элементу (повтор, если цель «уехала»). */
     async move (
       selector: string | ElementHandle,
       options?: MoveOptions
@@ -654,36 +697,36 @@ export const createCursor = (
 
         const elem = await this.getElement(selector, optionsResolved)
 
-        // Make sure the object is in view
+        // Убедитесь, что объект находится в области видимости
         await this.scrollIntoView(elem, optionsResolved)
 
         const box = await getElementBox(page, elem)
         const destination = (optionsResolved.destination !== undefined)
           ? add(box, optionsResolved.destination)
           : getRandomBoxPoint(box, optionsResolved)
+        // Решаем, делать ли «перелёт» (если цель далеко) — так движения выглядят менее «идеальными» и более живыми
         if (shouldOvershoot(
           location,
           destination,
           optionsResolved.overshootThreshold
         )) {
-          // overshoot
+          // Шаг 1: «перелёт» за цель (слегка промахиваемся)
           await moveMouse(overshoot(destination, OVERSHOOT_RADIUS), optionsResolved)
 
-          // then go to the box
+          // Шаг 2: возвращаемся к цели более узкой дугой
           await moveMouse({ ...box, ...destination }, {
             ...optionsResolved,
             spreadOverride: OVERSHOOT_SPREAD
           })
         } else {
-          // go directly to the box, no overshoot
+          // Иначе идём прямо к цели без «перелёта»
           await moveMouse(destination, optionsResolved)
         }
 
         const newBoundingBox = await getElementBox(page, elem)
 
-        // It's possible that the element that is being moved towards
-        // has moved to a different location by the time
-        // the the time the mouseover animation finishes
+        // Важно: элемент за время анимации может сдвинуться.
+        // Если в конце не попали в его рамки — пробуем ещё раз.
         if (!intersectsElement(location, newBoundingBox)) {
           return await go(iteration + 1)
         }
@@ -695,7 +738,7 @@ export const createCursor = (
       await delay(optionsResolved.moveDelay * (optionsResolved.randomizeMoveDelay ? Math.random() : 1))
     },
 
-    /** Moves the mouse to the specified destination point. */
+    /** Перемещает мышь к указанной точке назначения. */
     async moveTo (
       destination: Vector,
       options?: MoveToOptions
@@ -715,12 +758,12 @@ export const createCursor = (
       await delay(optionsResolved.moveDelay * (optionsResolved.randomizeMoveDelay ? Math.random() : 1))
     },
 
-    /** Moves the mouse by a specified amount */
+    /** Перемещает курсор на заданную величину */
     async moveBy (delta: Partial<Vector>, options?: MoveToOptions): Promise<void> {
       await this.moveTo(add(location, { x: 0, y: 0, ...delta }), options)
     },
 
-    /** Scrolls the element into view. If already in view, no scroll occurs. */
+    /** Прокручивает элемент до видимой области. Если элемент уже виден — ничего не делает. */
     async scrollIntoView (
       selector: string | ElementHandle,
       options?: ScrollIntoViewOptions
@@ -763,7 +806,14 @@ export const createCursor = (
         right: elemBoundingBox.x + elemBoundingBox.width
       }
 
-      // Add margin around the element
+      // Добавить `margin` вокруг элемента.
+
+      /** В контексте Ghost Cursor “margin” — это допуск вокруг`bounding box` элемента, задаваемый опцией `inViewportMargin` при `scrollIntoView`.
+      // Назначение: расширить прямоугольник элемента на `inViewportMargin` пикселей со всех сторон, чтобы считать элемент «в зоне видимости», даже если он близко к краю экрана.
+      // Где используется: `scrollIntoView` строит `marginedBox` из `elemBox`, прибавляя/вычитая `inViewportMargin` (см. ghost-cursor/src/spoof.ts:817–823).
+      // Дополнительная логика: расширенный прямоугольник приводится к координатам всего документа и «зажимается» в его границах, затем обратно переводится к `viewport` (см. :825–842). Это предотвращает ложные отрицательные координаты и выход за docWidth/docHeight.
+      // Итог проверки: если такой расширенный `targetBox` целиком в пределах `viewport`, прокрутка не выполняется (isInViewport === true, см. :846–851).
+      // Коротко: margin здесь — не CSS-свойство элемента, а числовой отступ (buffer) в пикселях для вычислений видимости при автопрокрутке.*/
       const marginedBox = {
         top: elemBox.top - optionsResolved.inViewportMargin,
         left: elemBox.left - optionsResolved.inViewportMargin,
@@ -771,7 +821,7 @@ export const createCursor = (
         right: elemBox.right + optionsResolved.inViewportMargin
       }
 
-      // Get position relative to the whole document
+      // Получить положение относительно всего документа.
       const marginedBoxRelativeToDoc = {
         top: marginedBox.top + scrollPositionTop,
         left: marginedBox.left + scrollPositionLeft,
@@ -779,10 +829,18 @@ export const createCursor = (
         right: marginedBox.right + scrollPositionLeft
       }
 
-      // Convert back to being relative to the viewport-- though if box with margin added goes outside
-      // the document, restrict to being *within* the document.
-      // This makes it so that when element is on the edge of window scroll, isInViewport=true even after
-      // margin was added.
+      // Преобразовать обратно к координатам относительно `viewport`-- 
+      // если `box` с добавленным `margin` выходит за пределы `document`, ограничить его границами `document`.
+      // Даже если элемент на самом краю экрана, мы всё равно считаем его видимым (isInViewport=true), даже с учётом `margin`.
+      /** 
+      // Преобразовать координаты обратно относительно `viewport`. Если `box` с добавленным `margin` выходит за пределы `document`, «зажать» его внутри границ `document`. Это нужно, чтобы когда элемент на самом краю области прокрутки окна, `isInViewport` оставалось true даже после применения `margin`.
+      // Пояснения:
+        // `viewport` - видимая область окна браузера.
+        // `document` - вся страница целиком, включая невидимые части за пределами экрана.
+        // `box` - прямоугольник элемента (его bounding box). К нему добавляют margin, чтобы считать не только строго видимую часть, но и «зону вокруг».
+        // Зачем «зажимать» в `document`: если после добавления margin прямоугольник ушёл за границы страницы (например, координаты стали отрицательными или больше размеров документа), мы корректируем их, иначе проверка на видимость будет некорректной.
+      // Пример: 
+        // Элемент вплотную к верхнему краю. Добавили `margin=10`, верхняя граница стала `y=-10`. Мы поднимаем её до `y=0`, чтобы логика `isInViewport` работала предсказуемо.*/
       const targetBox = {
         top: Math.max(marginedBoxRelativeToDoc.top, 0) - scrollPositionTop,
         left: Math.max(marginedBoxRelativeToDoc.left, 0) - scrollPositionLeft,
@@ -842,7 +900,11 @@ export const createCursor = (
       }
     },
 
-    /** Scrolls the page the distance set by `delta`. */
+    /**
+     * Прокрутка страницы на заданную дельту.
+     * Алгоритм: вычисляем, по какой оси путь длиннее, и делим весь путь
+     * на шаги. Чем «быстрее» scrollSpeed, тем крупнее шаги и меньше их число.
+     */
     async scroll (
       delta: Partial<Vector>,
       options?: ScrollOptions
@@ -869,9 +931,9 @@ export const createCursor = (
       const largerDistanceDir = deltaX > deltaY ? 'x' : 'y'
       const [largerDistance, shorterDistance] = largerDistanceDir === 'x' ? [deltaX, deltaY] : [deltaY, deltaX]
 
-      // When scrollSpeed under 90, pixels moved each scroll is equal to the scrollSpeed. 1 is as slow as we can get (without adding a delay), and 90 is pretty fast.
-      // Above 90 though, scale all the way to the full distance so that scrollSpeed=100 results in only 1 scroll action.
-      const EXP_SCALE_START = 90
+      // Когда scrollSpeed < 90, число пикселей за один шаг прокрутки равно значению scrollSpeed. 1 — это максимально медленно (без добавления задержки), а 90 — уже довольно быстро.
+      // При значении > 90 масштабируем на всю оставшуюся дистанцию, так что при scrollSpeed=100 выполняется всего одно действие прокрутки.
+      const EXP_SCALE_START = 90 // выше этого ускоряемся (меньше шагов)
       const largerDistanceScrollStep = scrollSpeed < EXP_SCALE_START
         ? scrollSpeed
         : scale(scrollSpeed, [EXP_SCALE_START, 100], [EXP_SCALE_START, largerDistance])
@@ -906,7 +968,7 @@ export const createCursor = (
       await delay(optionsResolved.scrollDelay)
     },
 
-    /** Scrolls to the specified destination point. */
+    /** Прокручивает к указанной точке/краю. */
     async scrollTo (
       destination: ScrollToDestination,
       options?: ScrollOptions
@@ -953,7 +1015,7 @@ export const createCursor = (
       }, optionsResolved)
     },
 
-    /** Gets the element via a selector. Can use an XPath. */
+    /** Получает элемент по селектору. Поддерживается XPath. */
     async getElement (
       selector: string | ElementHandle,
       options?: GetElementOptions
@@ -992,15 +1054,15 @@ export const createCursor = (
   }
 
   /**
-    * Make the cursor no longer visible.
-    * Defined only if `visible=true` was passed.
+    * Сделать курсор не видимым.
+    * Определяется только при передаче `visible=true`.
     */
   actions.removeMouseHelper = visible
     ? installMouseHelper(page).then(
       ({ removeMouseHelper }) => removeMouseHelper)
     : undefined
 
-  // Start random mouse movements. Do not await the promise but return immediately
+  // Запустить фоновое случайное движение курсора; не делать `await` на `Promise` — сразу вернуть управление.
   if (performRandomMoves) {
     randomMove().then(
       (_) => { },
