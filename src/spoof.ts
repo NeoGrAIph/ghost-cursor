@@ -34,6 +34,7 @@ import {
   extrapolate
 } from './math'
 import { installMouseHelper } from './mouse-helper'
+import { PERSONAS, compileOptions, rngFromSession } from './personas'
 
 export { installMouseHelper }
 
@@ -1131,11 +1132,29 @@ export const createCursor = (
   return actions
 }
 
+export const createPersonaCursor = (
+  page: Page,
+  personaId: keyof typeof PERSONAS,
+  sessionId?: string,
+  D: number = 500,
+  W: number = 40,
+  visible: boolean = false
+): GhostCursor => {
+  const persona = PERSONAS[personaId]
+  const rng = rngFromSession(sessionId ?? personaId)
+  const opts = compileOptions(persona, rng, D, W)
+  return createCursor(page, undefined, false, {
+    move: opts.move,
+    moveTo: { ...opts.move, ...opts.path },
+    click: { ...opts.move, ...opts.click },
+    scroll: opts.scroll
+  }, visible)
+}
+
 // ======================================================================================
 // -- Подключение персон с индивидуальными диапазонами соответствующих им параметров
 // ======================================================================================
 /**
   * Стандарт, Внимательный, Быстрый, Неуверенный, Скроллер, Торопливый
   */
-export { PERSONAS, compileOptions, rngFromSession } from './personas'
-export { createPersonaCursor } from './createPersonaCursor'
+export { PERSONAS, compileOptions, rngFromSession }

@@ -8,7 +8,7 @@
 // =============================
 // Импорты
 // =============================
-import { createPersonaCursor, PERSONAS } from '../createPersonaCursor'
+import { createPersonaCursor, PERSONAS } from '../spoof'
 import { join } from 'path'
 import { promises as fs } from 'fs'
 import puppeteer from 'puppeteer'
@@ -22,10 +22,8 @@ const delay = async (ms: number): Promise<void> => {
   return await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// =============================
-// Выбор персоны
-// =============================
-const personaId = process.env.PERSONA ?? 'P1'
+// Выбор персоны через переменную окружения PERSONA
+const personaId = process.env.PERSONA ?? 'P4'
 if (!(personaId in PERSONAS)) {
   console.error(`Unknown persona "${personaId}". Available: ${Object.keys(PERSONAS).join(', ')}`)
   process.exit(1)
@@ -38,7 +36,7 @@ if (!(personaId in PERSONAS)) {
 puppeteer.launch({ headless: false }).then(async (browser) => {
   const page = await browser.newPage()
 
-  // 2) Создаём курсор с выбранной персоной; последний аргумент включает «видимый» оверлей
+  // 2) Создаём курсор выбранной персоны
   const cursor = createPersonaCursor(page, personaId, 'debug-session', 500, 40, true)
 
   // =============================
@@ -59,7 +57,7 @@ puppeteer.launch({ headless: false }).then(async (browser) => {
   const performActions = async (): Promise<void> => {
     await cursor.click('#box1')
 
-    await cursor.click('#box2', { moveDelay: 2000 })
+    await cursor.click('#box2')
 
     await cursor.click('#box3')
 
