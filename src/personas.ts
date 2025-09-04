@@ -155,6 +155,24 @@ export const PERSONAS: Record<string, Persona> = {
     scrollDelay: { min: 150, mode: 200, max: 250 },
     maxTries: { min: 8, max: 10 },
     spreadOverride: { min: 1, max: 2 }
+  },
+  P7: {
+    id: 'P7',
+    label: 'Test',
+    fitts: { a_ms: 0, b_ms_per_bit: 0 },
+    dwell: { min: 0, mode: 0, max: 0 },
+    waitForClick: { min: 0, max: 0 },
+    clickMoveDelay: { min: 0, mode: 0, max: 0 },
+    padding_pct: { min: 0, mode: 0, max: 0 },
+    overshootThreshold_px: { min: 0, mode: 0, max: 2000 },
+    overshoot_rate: 0.00,
+    micro_jitter_px: { min: 0, max: 0 },
+    doubleClick_ms: { min: 0, mode: 0, max: 0 },
+    doubleClick_drift_px: { min: 0, max: 0 },
+    scrollSpeed: { min: 100, max: 100 },
+    scrollDelay: { min: 0, mode: 0, max: 0 },
+    maxTries: { min: 0, max: 0 },
+    spreadOverride: { min: 0, max: 0 }
   }
 }
 

@@ -3,8 +3,8 @@
   "version": "1.4.1",
   "description": "Move your mouse like a human in puppeteer or generate realistic movements on any 2D plane",
   "repository": "https://github.com/Xetera/ghost-cursor",
-  "main": "lib/spoof.js",
-  "types": "lib/spoof.d.ts",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "scripts": {
     "prepare": "husky && yarn lint && yarn build",
     "build": "tsc -p tsconfig.build.json",

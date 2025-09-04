@@ -2,28 +2,35 @@ import type { Page } from 'puppeteer'
 import { createCursor, type GhostCursor } from './spoof'
 import { PERSONAS, rngFromSession, compileOptions } from './personas'
 
-export function createPersonaCursor (
+/**
+ * Factory that builds a cursor using parameters from predefined personas.
+ */
+export const createPersonaCursor = (
   page: Page,
   personaId: keyof typeof PERSONAS,
   sessionId?: string,
   D = 500,
   W = 40,
   visible = false
-): GhostCursor {
+): GhostCursor => {
   const persona = PERSONAS[personaId]
+  if (persona === undefined) {
+    throw new Error(`Unknown persona: ${personaId}`)
+  }
   const rng = rngFromSession(sessionId ?? personaId)
   const opts = compileOptions(persona, rng, D, W)
-
-  return createCursor(page, undefined, false, {
-    move: opts.move,
-    moveTo: {
-      moveDelay: opts.move.moveDelay,
-      randomizeMoveDelay: opts.move.randomizeMoveDelay,
-      ...opts.path
+  return createCursor(
+    page,
+    undefined,
+    false,
+    {
+      move: opts.move,
+      moveTo: { ...opts.move, ...opts.path },
+      click: { ...opts.move, ...opts.click },
+      scroll: opts.scroll
     },
-    click: { ...opts.move, ...opts.click },
-    scroll: opts.scroll
-  }, visible)
+    visible
+  )
 }
 
-export { PERSONAS } from './personas'
+export { PERSONAS, rngFromSession, compileOptions }
