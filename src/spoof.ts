@@ -313,7 +313,14 @@ const fitts = (distance: number, width: number): number => {
   return a + b * id
 }
 
-/** Случайная точка внутри прямоугольника элемента (учитывается paddingPercentage) */
+/**
+ * Случайная точка внутри прямоугольника элемента (учитывается `paddingPercentage`).
+ *
+ * Ограничения:
+ * - Значения `paddingPercentage` применяются только в диапазоне (0, 100].
+ *   При `> 100` параметр считается невалидным и игнорируется (берётся весь бокс).
+ *   Если нужно целиться в центр, указывайте `paddingPercentage = 100`.
+ */
 const getRandomBoxPoint = (
   { x, y, width, height }: BoundingBox,
   options?: Pick<BoxOptions, 'paddingPercentage'>

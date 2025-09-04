@@ -47,23 +47,77 @@ function hashString (s: string): number {
 }
 
 // ---------- Каталог персон (v1) ----------
+
 export const PERSONAS: Record<string, Persona> = {
   P1: {
-    id: 'P1',
-    label: 'Стандарт',
+    // Профиль «Стандарт»: среднестатистическое поведение курсора без крайностей.
+    // Принципы распределений:
+    // - { min, max } — равномерное распределение U[min, max]
+    // - { min, mode, max } — треугольное распределение Tri(min, mode, max)
+
+    id: 'P1', // Уникальный идентификатор профиля
+    label: 'Стандарт', // Человекочитаемая метка профиля
+
+    // Модель Фиттса (время наведения на цель):
+    // T(ms) = a_ms + b_ms_per_bit * log2(D/W + 1),
+    // где D — расстояние до цели (px), W — ширина цели (px).
+    // `a_ms`: базовая задержка в миллисекундах. Постоянная часть времени перемещения, не зависящая от расстояния и размера цели.
+    // Как влияет: `a_ms`: сдвигает всё время вверх на константу. Особенно заметно на лёгких движениях (близкие/крупные цели), где логарифмический член мал.
+    // `b_ms_per_bit`: «скорость нарастания» времени на каждый бит сложности по закону Фиттса. Масштабирует вклад логарифмической части.
+    // Как влияет: `b_ms_per_bit`: определяет, насколько чувствительно растёт время с усложнением задачи (дальше и/или меньше цель → больше ID). Влияет сильнее на «трудные» перемещения.
+    // Чем дальше цель и чем она меньше, тем дольше наведение.
     fitts: { a_ms: 100, b_ms_per_bit: 174 },
+
+    // «Задержка на цели» перед действием: время на выравнивание/прицеливание.
+    // Треугольное распределение (мс): чаще всего около mode.
     dwell: { min: 120, mode: 170, max: 260 },
+
+    // Пауза между завершением наведения и нажатием (mouseDown), мс.
+    // Равномерное распределение: имитирует небольшую вариативность реакции.
     waitForClick: { min: 70, max: 120 },
+
+    // Задержка перед началом следующего перемещения после клика, мс.
+    // Треугольное распределение: пик в районе mode.
     clickMoveDelay: { min: 520, mode: 620, max: 760 },
+
+    // Дополнительный «пэддинг» вокруг цели, в процентах её размера.
+    // Снижает шанс касания кромок цели при прицеливании.
     padding_pct: { min: 10, mode: 15, max: 25 },
+
+    // Порог расстояния, после которого допустимо «перелететь» цель (overshoot) и
+    // затем скорректироваться. Единицы: пиксели.
     overshootThreshold_px: { min: 450, mode: 500, max: 650 },
+
+    // Доля перемещений, где намеренно допускается лёгкий «перелёт» цели [0..1].
+    // Небольшое значение имитирует человеческую инерцию без излишней заметности.
     overshoot_rate: 0.03,
+
+    // Микродрожь (джиттер) курсора по пути, px. Равномерное распределение.
+    // Малые значения добавляют «живости», не ломая траекторию.
     micro_jitter_px: { min: 0, max: 2 },
+
+    // Интервал между кликами в двойном клике, мс. Треугольное распределение.
+    // Позволяет реалистично эмулировать двойные клики.
     doubleClick_ms: { min: 300, mode: 500, max: 800 },
+
+    // Случайный дрейф (смещение) между двумя кликами двойного клика, px.
+    // Равномерное распределение: небольшие подвижки руки пользователя.
     doubleClick_drift_px: { min: 0, max: 2 },
+
+    // Скорость прокрутки: «сила» одного шага wheel-события, px/шаг.
+    // Равномерное распределение: чуть варьируем «сильнее/слабее» прокрутку.
     scrollSpeed: { min: 80, max: 90 },
+
+    // Пауза между последовательными шагами прокрутки, мс. Треугольное распределение.
+    // Делает скролл порционным и более «ручным».
     scrollDelay: { min: 180, mode: 230, max: 300 },
+
+    // Лимит на количество попыток корректировок/повторных подходов к цели.
+    // Равномерное распределение: небольшой разброс в терпеливости.
     maxTries: { min: 9, max: 11 },
+
+    // Множитель «ширины»/разброса траектории (кривизна/шум пути).
+    // Равномерное распределение: 1 — узко и аккуратно, 2 — шире и «живее».
     spreadOverride: { min: 1, max: 2 }
   },
   P2: {
@@ -158,21 +212,21 @@ export const PERSONAS: Record<string, Persona> = {
   },
   P7: {
     id: 'P7',
-    label: 'Test',
-    fitts: { a_ms: 0, b_ms_per_bit: 0 },
+    label: 'Test super fast',
+    fitts: { a_ms: 1, b_ms_per_bit: 1 },
     dwell: { min: 0, mode: 0, max: 0 },
     waitForClick: { min: 0, max: 0 },
     clickMoveDelay: { min: 0, mode: 0, max: 0 },
-    padding_pct: { min: 0, mode: 0, max: 0 },
-    overshootThreshold_px: { min: 0, mode: 0, max: 2000 },
+    padding_pct: { min: 100, mode: 100, max: 100 },
+    overshootThreshold_px: { min: 4000, mode: 4000, max: 4000 },
     overshoot_rate: 0.00,
     micro_jitter_px: { min: 0, max: 0 },
     doubleClick_ms: { min: 0, mode: 0, max: 0 },
     doubleClick_drift_px: { min: 0, max: 0 },
-    scrollSpeed: { min: 100, max: 100 },
+    scrollSpeed: { min: 200, max: 200 },
     scrollDelay: { min: 0, mode: 0, max: 0 },
     maxTries: { min: 0, max: 0 },
-    spreadOverride: { min: 0, max: 0 }
+    spreadOverride: { min: 1, max: 1 }
   }
 }
 
@@ -218,9 +272,17 @@ export function compileOptions (persona: Persona, rng: () => number, D: number, 
   const maxTries = Math.round(uniform(rng, persona.maxTries.min, persona.maxTries.max))
   const spread = Math.round(uniform(rng, persona.spreadOverride.min, persona.spreadOverride.max))
   const targetMT = fittsMT(D, W, persona.fitts.a_ms, persona.fitts.b_ms_per_bit)
+  // Если у персоны «нулевая» задержка после клика (min=mode=max=0),
+  // то и для обычных перемещений убираем искусственную задержку 0..40мс.
+  // Для остальных профилей сохраняем небольшую случайную паузу между перемещениями.
+  const zeroClickMoveDelay =
+    persona.clickMoveDelay.min === 0 &&
+    persona.clickMoveDelay.mode === 0 &&
+    persona.clickMoveDelay.max === 0
+  const moveDelayAfterMove = zeroClickMoveDelay ? 0 : Math.round(uniform(rng, 0, 40))
 
   return {
-    move: { paddingPercentage: padding, moveDelay: Math.round(uniform(rng, 0, 40)), randomizeMoveDelay: true, overshootThreshold, maxTries },
+    move: { paddingPercentage: padding, moveDelay: moveDelayAfterMove, randomizeMoveDelay: !zeroClickMoveDelay, overshootThreshold, maxTries },
     click: { hesitate: dwell, waitForClick: wfc, moveDelay },
     scroll: { scrollSpeed, scrollDelay },
     path: { spreadOverride: spread, useTimestamps: true },

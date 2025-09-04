@@ -24,7 +24,9 @@ export const createPersonaCursor = (
     undefined,
     false,
     {
-      move: opts.move,
+      // Пробрасываем path-опции (например, spreadOverride/useTimestamps) и в move,
+      // чтобы конфигурация персоны влияла и на обычные перемещения, а не только на moveTo.
+      move: { ...opts.move, ...opts.path },
       moveTo: { ...opts.move, ...opts.path },
       click: { ...opts.move, ...opts.click },
       scroll: opts.scroll
