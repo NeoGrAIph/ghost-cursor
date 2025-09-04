@@ -20,6 +20,35 @@ export interface Persona {
   scrollDelay: Tri // пауза после скролла, мс
   maxTries: Range // число попыток наводки
   spreadOverride: Range // «живость» траектории (шаги от базовой)
+  /**
+   * Windows wheel: дискретный шаг «щелчка» колеса, пикселей за тик.
+   * Дискретный параметр — единственное число, не диапазон.
+   */
+  wheelStep_px?: number
+  /**
+   * Пауза между «тиками» колеса, мс. Можно использовать треугольное распределение
+   * для небольшой вариативности.
+   */
+  wheelStepDelay_ms?: Tri
+  /**
+   * Дополнительный «перескролл» при scrollIntoView, px. Задаёт, на сколько пикселей
+   * прокручивать дальше требуемой границы, чтобы поведение выглядело «человеческим».
+   */
+  scrollIntoViewOvershoot_px?: Tri
+  /**
+   * Компенсация после перескролла при scrollIntoView, px. Прокрутка в обратную сторону
+   * на указанное число пикселей, чтобы «выправить» положение элемента после перелёта.
+   */
+  scrollIntoViewCompensate_px?: Tri
+  /**
+   * Вероятность применять компенсацию после перескролла при scrollIntoView (0..1).
+   * Дискретный параметр-число: берётся случайно из диапазона и используется как шанс.
+   */
+  scrollIntoViewCompensate_prob?: Range
+  /** Стартовая зона по оси X (верхняя панель вкладок), px. */
+  topBarX_px?: Range
+  /** Небольшой «съезд» вниз после появления курсора, px. */
+  topBarDrop_px?: Tri
 }
 
 // ---------- Seeded PRNG + распределения ----------
@@ -118,7 +147,15 @@ export const PERSONAS: Record<string, Persona> = {
 
     // Множитель «ширины»/разброса траектории (кривизна/шум пути).
     // Равномерное распределение: 1 — узко и аккуратно, 2 — шире и «живее».
-    spreadOverride: { min: 1, max: 2 }
+    spreadOverride: { min: 1, max: 2 },
+    // Windows колесо: дискретный шаг и пауза между «тиками»
+    wheelStep_px: 48,
+    wheelStepDelay_ms: { min: 25, mode: 45, max: 80 },
+    scrollIntoViewOvershoot_px: { min: 77, mode: 127, max: 333 },
+    scrollIntoViewCompensate_px: { min: 8, mode: 15, max: 25 },
+    scrollIntoViewCompensate_prob: { min: 0.01, max: 0.1 },
+    topBarX_px: { min: 333, max: 777 },
+    topBarDrop_px: { min: 12, mode: 20, max: 32 }
   },
   P2: {
     id: 'P2',
@@ -136,7 +173,14 @@ export const PERSONAS: Record<string, Persona> = {
     scrollSpeed: { min: 78, max: 86 },
     scrollDelay: { min: 220, mode: 280, max: 340 },
     maxTries: { min: 10, max: 12 },
-    spreadOverride: { min: 1, max: 3 }
+    spreadOverride: { min: 1, max: 3 },
+    wheelStep_px: 40,
+    wheelStepDelay_ms: { min: 40, mode: 70, max: 110 },
+    scrollIntoViewOvershoot_px: { min: 77, mode: 127, max: 333 },
+    scrollIntoViewCompensate_px: { min: 6, mode: 12, max: 20 },
+    scrollIntoViewCompensate_prob: { min: 0.01, max: 0.1 },
+    topBarX_px: { min: 333, max: 777 },
+    topBarDrop_px: { min: 16, mode: 26, max: 40 }
   },
   P3: {
     id: 'P3',
@@ -154,7 +198,14 @@ export const PERSONAS: Record<string, Persona> = {
     scrollSpeed: { min: 88, max: 92 },
     scrollDelay: { min: 160, mode: 200, max: 260 },
     maxTries: { min: 8, max: 10 },
-    spreadOverride: { min: 1, max: 2 }
+    spreadOverride: { min: 1, max: 2 },
+    wheelStep_px: 56,
+    wheelStepDelay_ms: { min: 15, mode: 30, max: 60 },
+    scrollIntoViewOvershoot_px: { min: 77, mode: 127, max: 333 },
+    scrollIntoViewCompensate_px: { min: 10, mode: 20, max: 30 },
+    scrollIntoViewCompensate_prob: { min: 0.01, max: 0.1 },
+    topBarX_px: { min: 333, max: 777 },
+    topBarDrop_px: { min: 10, mode: 16, max: 26 }
   },
   P4: {
     id: 'P4',
@@ -172,7 +223,14 @@ export const PERSONAS: Record<string, Persona> = {
     scrollSpeed: { min: 75, max: 82 },
     scrollDelay: { min: 240, mode: 300, max: 380 },
     maxTries: { min: 11, max: 13 },
-    spreadOverride: { min: 2, max: 3 }
+    spreadOverride: { min: 2, max: 3 },
+    wheelStep_px: 40,
+    wheelStepDelay_ms: { min: 70, mode: 100, max: 140 },
+    scrollIntoViewOvershoot_px: { min: 77, mode: 127, max: 333 },
+    scrollIntoViewCompensate_px: { min: 4, mode: 8, max: 15 },
+    scrollIntoViewCompensate_prob: { min: 0.01, max: 0.1 },
+    topBarX_px: { min: 333, max: 777 },
+    topBarDrop_px: { min: 20, mode: 32, max: 48 }
   },
   P5: {
     id: 'P5',
@@ -190,7 +248,14 @@ export const PERSONAS: Record<string, Persona> = {
     scrollSpeed: { min: 85, max: 90 },
     scrollDelay: { min: 150, mode: 220, max: 280 },
     maxTries: { min: 9, max: 11 },
-    spreadOverride: { min: 1, max: 2 }
+    spreadOverride: { min: 1, max: 2 },
+    wheelStep_px: 60,
+    wheelStepDelay_ms: { min: 20, mode: 40, max: 70 },
+    scrollIntoViewOvershoot_px: { min: 77, mode: 127, max: 333 },
+    scrollIntoViewCompensate_px: { min: 12, mode: 22, max: 35 },
+    scrollIntoViewCompensate_prob: { min: 0.01, max: 0.1 },
+    topBarX_px: { min: 100, max: 320 },
+    topBarDrop_px: { min: 14, mode: 22, max: 36 }
   },
   P6: {
     id: 'P6',
@@ -208,7 +273,14 @@ export const PERSONAS: Record<string, Persona> = {
     scrollSpeed: { min: 90, max: 92 },
     scrollDelay: { min: 150, mode: 200, max: 250 },
     maxTries: { min: 8, max: 10 },
-    spreadOverride: { min: 1, max: 2 }
+    spreadOverride: { min: 1, max: 2 },
+    wheelStep_px: 54,
+    wheelStepDelay_ms: { min: 20, mode: 35, max: 60 },
+    scrollIntoViewOvershoot_px: { min: 77, mode: 127, max: 333 },
+    scrollIntoViewCompensate_px: { min: 8, mode: 16, max: 26 },
+    scrollIntoViewCompensate_prob: { min: 0.01, max: 0.1 },
+    topBarX_px: { min: 333, max: 777 },
+    topBarDrop_px: { min: 12, mode: 18, max: 28 }
   },
   P7: {
     id: 'P7',
@@ -226,7 +298,14 @@ export const PERSONAS: Record<string, Persona> = {
     scrollSpeed: { min: 200, max: 200 },
     scrollDelay: { min: 0, mode: 0, max: 0 },
     maxTries: { min: 0, max: 0 },
-    spreadOverride: { min: 1, max: 1 }
+    spreadOverride: { min: 1, max: 1 },
+    wheelStep_px: 60,
+    wheelStepDelay_ms: { min: 0, mode: 0, max: 0 },
+    scrollIntoViewOvershoot_px: { min: 77, mode: 127, max: 333 },
+    scrollIntoViewCompensate_px: { min: 0, mode: 0, max: 0 },
+    scrollIntoViewCompensate_prob: { min: 0, max: 0 },
+    topBarX_px: { min: 333, max: 777 },
+    topBarDrop_px: { min: 0, mode: 0, max: 0 }
   }
 }
 
@@ -251,6 +330,11 @@ export interface CompiledOptions {
   scroll: {
     scrollSpeed: number
     scrollDelay: number
+    wheelStepPx?: number
+    wheelStepDelay?: number
+    overscrollPx?: number
+    overscrollCompensatePx?: number
+    overscrollCompensateProb?: number
   }
   path: {
     spreadOverride: number
@@ -258,19 +342,34 @@ export interface CompiledOptions {
   }
   meta: {
     targetMT: number
+    topBarX?: number
+    topBarDrop?: number
   }
 }
 
 export function compileOptions (persona: Persona, rng: () => number, D: number, W: number): CompiledOptions {
-  const dwell = Math.round(tri(rng, persona.dwell))
-  const wfc = Math.round(uniform(rng, persona.waitForClick.min, persona.waitForClick.max))
-  const padding = Math.round(tri(rng, persona.padding_pct))
-  const moveDelay = Math.round(tri(rng, persona.clickMoveDelay))
-  const overshootThreshold = Math.round(tri(rng, persona.overshootThreshold_px))
-  const scrollDelay = Math.round(tri(rng, persona.scrollDelay))
-  const scrollSpeed = Math.round(uniform(rng, persona.scrollSpeed.min, persona.scrollSpeed.max))
-  const maxTries = Math.round(uniform(rng, persona.maxTries.min, persona.maxTries.max))
-  const spread = Math.round(uniform(rng, persona.spreadOverride.min, persona.spreadOverride.max))
+  // Неразрешённая проблема повторяемости: при фиксированном sessionId сидированный RNG даёт те же значения.
+  // Для действительно случайного поведения на каждом запуске, применяем несидированный Math.random
+  // для выборки распределений в compileOptions (а на уровне действий также есть рандомизация).
+  const triRand = (t: Tri): number => {
+    const { min, mode, max } = t
+    const u = Math.random()
+    const p = (mode - min) / (max - min)
+    return u < p
+      ? min + Math.sqrt(u * (max - min) * (mode - min))
+      : max - Math.sqrt((1 - u) * (max - min) * (max - mode))
+  }
+  const uniRand = (a: number, b: number): number => a + (b - a) * Math.random()
+
+  const dwell = Math.round(triRand(persona.dwell))
+  const wfc = Math.round(uniRand(persona.waitForClick.min, persona.waitForClick.max))
+  const padding = Math.round(triRand(persona.padding_pct))
+  const moveDelay = Math.round(triRand(persona.clickMoveDelay))
+  const overshootThreshold = Math.round(triRand(persona.overshootThreshold_px))
+  const scrollDelay = Math.round(triRand(persona.scrollDelay))
+  const scrollSpeed = Math.round(uniRand(persona.scrollSpeed.min, persona.scrollSpeed.max))
+  const maxTries = Math.round(uniRand(persona.maxTries.min, persona.maxTries.max))
+  const spread = Math.round(uniRand(persona.spreadOverride.min, persona.spreadOverride.max))
   const targetMT = fittsMT(D, W, persona.fitts.a_ms, persona.fitts.b_ms_per_bit)
   // Если у персоны «нулевая» задержка после клика (min=mode=max=0),
   // то и для обычных перемещений убираем искусственную задержку 0..40мс.
@@ -279,14 +378,59 @@ export function compileOptions (persona: Persona, rng: () => number, D: number, 
     persona.clickMoveDelay.min === 0 &&
     persona.clickMoveDelay.mode === 0 &&
     persona.clickMoveDelay.max === 0
-  const moveDelayAfterMove = zeroClickMoveDelay ? 0 : Math.round(uniform(rng, 0, 40))
+  const moveDelayAfterMove = zeroClickMoveDelay ? 0 : Math.round(uniRand(0, 40))
+
+  // Дискретные параметры колеса (Windows): шаг тика в пикселях и пауза между тиками
+  const wheelStepPx = persona.wheelStep_px
+  const wheelStepDelay = persona.wheelStepDelay_ms != null
+    ? Math.round(triRand(persona.wheelStepDelay_ms))
+    : undefined
+  const overscrollPx = persona.scrollIntoViewOvershoot_px != null
+    ? Math.round(triRand(persona.scrollIntoViewOvershoot_px))
+    : undefined
+  const overscrollCompensatePx = persona.scrollIntoViewCompensate_px != null
+    ? Math.round(triRand(persona.scrollIntoViewCompensate_px))
+    : undefined
+  const overscrollCompensateProb = persona.scrollIntoViewCompensate_prob != null
+    ? uniRand(persona.scrollIntoViewCompensate_prob.min, persona.scrollIntoViewCompensate_prob.max)
+    : undefined
+
+  // Стартовые координаты курсора по персоне (верхняя панель)
+  // Важно: стартовая X‑позиция не должна «залипать» при фиксированном сидировании сессии.
+  // Поэтому берём её из нативного Math.random() (независимо от seed), чтобы между запусками был реальный разброс.
+  const topBarX = persona.topBarX_px != null
+    ? ((): number => {
+        const a = Math.min(persona.topBarX_px.min, persona.topBarX_px.max)
+        const b = Math.max(persona.topBarX_px.min, persona.topBarX_px.max)
+        return Math.floor(Math.random() * (b - a + 1)) + a
+      })()
+    : undefined
+  const topBarDrop = persona.topBarDrop_px != null
+    ? Math.round(tri(rng, persona.topBarDrop_px))
+    : undefined
+
+  // Лог фактически применённых значений рандомизации (можно отключить env GHOST_CURSOR_LOG_PERSONA=0)
+  try {
+    if (process.env.GHOST_CURSOR_LOG_PERSONA !== '0') {
+      const applied = {
+        persona: { id: persona.id, label: persona.label },
+        move: { paddingPercentage: padding, moveDelayAfterMove, overshootThreshold, maxTries },
+        click: { hesitate: dwell, waitForClick: wfc, moveDelay },
+        scroll: { scrollSpeed, scrollDelay, wheelStepPx, wheelStepDelay, overscrollPx, overscrollCompensatePx, overscrollCompensateProb },
+        path: { spreadOverride: spread, useTimestamps: true },
+        meta: { topBarX, topBarDrop, targetMT }
+      }
+      // eslint-disable-next-line no-console
+      console.log('[ghost-cursor] persona applied:', applied)
+    }
+  } catch {}
 
   return {
     move: { paddingPercentage: padding, moveDelay: moveDelayAfterMove, randomizeMoveDelay: !zeroClickMoveDelay, overshootThreshold, maxTries },
     click: { hesitate: dwell, waitForClick: wfc, moveDelay },
-    scroll: { scrollSpeed, scrollDelay },
+    scroll: { scrollSpeed, scrollDelay, wheelStepPx, wheelStepDelay, overscrollPx, overscrollCompensatePx, overscrollCompensateProb },
     path: { spreadOverride: spread, useTimestamps: true },
-    meta: { targetMT }
+    meta: { targetMT, topBarX, topBarDrop }
   }
 }
 

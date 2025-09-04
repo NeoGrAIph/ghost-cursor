@@ -81,6 +81,20 @@ export interface ScrollOptions {
     * @default 200
     */
   readonly scrollDelay?: number
+  /**
+   * Дискретный шаг «щелчка» колесика (Windows), пикселей за тик.
+   * Если задано, прокрутка разбивается на шаги ровно этой величины.
+   * @default undefined (шаг вычисляется из scrollSpeed)
+   */
+  readonly wheelStepPx?: number
+  /**
+   * Пауза между «тиками» колесика в миллисекундах. Применяется, когда выполняется серия тиков.
+   * @default undefined (без дополнительной паузы между тиками)
+   */
+  readonly wheelStepDelay?: number
+  // Дистрибутивы персоны для динамической рандомизации на каждом действии
+  readonly scrollDelayTri?: { min: number, mode: number, max: number }
+  readonly wheelStepDelayTri?: { min: number, mode: number, max: number }
 }
 
 export interface ScrollIntoViewOptions extends ScrollOptions, GetElementOptions {
@@ -100,6 +114,20 @@ export interface ScrollIntoViewOptions extends ScrollOptions, GetElementOptions 
     * @default 0
     */
   readonly inViewportMargin?: number
+  /**
+   * Перескролл при scrollIntoView, пиксели. Применяется сверх рассчитанной дельты
+   * только в соответствующем направлении (вниз/вверх/влево/вправо).
+   */
+  readonly overscrollPx?: number
+  /**
+   * Компенсация после перескролла: прокрутка в обратную сторону на указанное число пикселей.
+   */
+  readonly overscrollCompensatePx?: number
+  /**
+   * Вероятность применять компенсацию после перескролла (0..1). Если не задана, компенсация
+   * применяется по умолчанию с вероятностью ~0.6.
+   */
+  readonly overscrollCompensateProb?: number
 }
 
 export interface MoveOptions extends BoxOptions, ScrollIntoViewOptions, Pick<PathOptions, 'moveSpeed'> {
@@ -123,6 +151,10 @@ export interface MoveOptions extends BoxOptions, ScrollIntoViewOptions, Pick<Pat
     * @default 500
     */
   readonly overshootThreshold?: number
+  // Дистрибутивы персоны для динамической рандомизации на каждом действии
+  readonly paddingTri?: { min: number, mode: number, max: number }
+  readonly overshootThresholdTri?: { min: number, mode: number, max: number }
+  readonly maxTriesRange?: { min: number, max: number }
 }
 
 export interface ClickOptions extends MoveOptions {
@@ -148,6 +180,10 @@ export interface ClickOptions extends MoveOptions {
     * @default 1
     */
   readonly clickCount?: number
+  // Дистрибутивы для динамики клика
+  readonly hesitateTri?: { min: number, mode: number, max: number }
+  readonly waitForClickRange?: { min: number, max: number }
+  readonly moveDelayTri?: { min: number, mode: number, max: number }
 }
 
 export interface PathOptions {
@@ -286,6 +322,8 @@ export interface GhostCursor {
     * Если при создании курсора включали `visible=true`.
     */
   removeMouseHelper?: Promise<() => Promise<void>>
+  /** Уводит курсор к верхней кромке окна (y=0) на указанный x или на случайный x. */
+  parkTop: (x?: number) => Promise<void>
 }
 
 // ======================================================================================
@@ -598,6 +636,17 @@ export const createCursor = (
     }
   }
 
+  // Helpers для выборки из распределений персоны (локально, без зависимости от persona.ts)
+  const sampleUniform = (min: number, max: number): number => min + (max - min) * Math.random()
+  const sampleTri = (tri: { min: number, mode: number, max: number }): number => {
+    const { min, mode, max } = tri
+    const u = Math.random()
+    const p = (mode - min) / (max - min)
+    return u < p
+      ? min + Math.sqrt(u * (max - min) * (mode - min))
+      : max - Math.sqrt((1 - u) * (max - min) * (max - mode))
+  }
+
   // ======================================================================================
   // -- Helper: randomMove(...)
   // Фоновое «брожение»: курсор периодически двигается к случайной точке окна.
@@ -702,16 +751,26 @@ export const createCursor = (
       }
 
       try {
-        await delay(optionsResolved.hesitate)
+        const hesitate = optionsResolved.hesitateTri !== undefined
+          ? Math.round(sampleTri(optionsResolved.hesitateTri))
+          : (optionsResolved.hesitate ?? 0)
+        const waitForClick = optionsResolved.waitForClickRange !== undefined
+          ? Math.round(sampleUniform(optionsResolved.waitForClickRange.min, optionsResolved.waitForClickRange.max))
+          : (optionsResolved.waitForClick ?? 0)
+
+        await delay(hesitate)
 
         await this.mouseDown()
-        await delay(optionsResolved.waitForClick)
+        await delay(waitForClick)
         await this.mouseUp()
       } catch (error) {
         log('Warning: could not click mouse, error message:', error)
       }
-
-      await delay(optionsResolved.moveDelay * (optionsResolved.randomizeMoveDelay ? Math.random() : 1))
+      const afterDelayBase = optionsResolved.moveDelayTri !== undefined
+        ? Math.round(sampleTri(optionsResolved.moveDelayTri))
+        : (optionsResolved.moveDelay ?? 0)
+      const afterDelay = optionsResolved.randomizeMoveDelay ? Math.round(afterDelayBase * Math.random()) : afterDelayBase
+      await delay(afterDelay)
 
       actions.toggleRandomMove(wasRandom)
     },
@@ -745,8 +804,18 @@ export const createCursor = (
       const wasRandom = !moving
       actions.toggleRandomMove(false)
 
+      const paddingPct = optionsResolved.paddingTri !== undefined
+        ? Math.round(sampleTri(optionsResolved.paddingTri))
+        : optionsResolved.paddingPercentage
+      const overshootThresholdResolved = optionsResolved.overshootThresholdTri !== undefined
+        ? Math.round(sampleTri(optionsResolved.overshootThresholdTri))
+        : optionsResolved.overshootThreshold
+      const maxTriesResolved = optionsResolved.maxTriesRange !== undefined
+        ? Math.round(sampleUniform(optionsResolved.maxTriesRange.min, optionsResolved.maxTriesRange.max))
+        : (optionsResolved.maxTries ?? 10)
+
       const go = async (iteration: number): Promise<void> => {
-        if (iteration > (optionsResolved.maxTries)) {
+        if (iteration > maxTriesResolved) {
           throw Error('Could not mouse-over element within enough tries')
         }
 
@@ -758,12 +827,12 @@ export const createCursor = (
         const box = await getElementBox(page, elem)
         const destination = (optionsResolved.destination !== undefined)
           ? add(box, optionsResolved.destination)
-          : getRandomBoxPoint(box, optionsResolved)
+          : getRandomBoxPoint(box, { paddingPercentage: paddingPct })
         // Решаем, делать ли «перелёт» (если цель далеко) — так движения выглядят менее «идеальными» и более живыми
         if (shouldOvershoot(
           location,
           destination,
-          optionsResolved.overshootThreshold
+          overshootThresholdResolved
         )) {
           // Шаг 1: «перелёт» за цель (слегка промахиваемся)
           await moveMouse(overshoot(destination, OVERSHOOT_RADIUS), optionsResolved)
@@ -918,22 +987,68 @@ export const createCursor = (
       if (isInViewport) return
 
       const manuallyScroll = async (): Promise<void> => {
-        let deltaY: number = 0
-        let deltaX: number = 0
-
-        if (top < 0) {
-          deltaY = top // Scroll up
-        } else if (bottom > viewportHeight) {
-          deltaY = bottom - viewportHeight // Scroll down
+        const overscroll = Math.max(0, optionsResolved.overscrollPx ?? 0)
+        const chance = optionsResolved.overscrollCompensateProb ?? 0.6
+        // Величина компенсации по вертикали зависит от настроек колеса:
+        // - базовый шаг тика (wheelStepPx или производный от scrollSpeed)
+        // - задержка между тиками (wheelStepDelay) как коэффициент инерции
+        const computeVerticalComp = (): number => {
+          const baseStep = (optionsResolved.wheelStepPx !== undefined && optionsResolved.wheelStepPx > 0)
+            ? optionsResolved.wheelStepPx
+            : clamp(optionsResolved.scrollSpeed ?? 100, 8, 60)
+          const delay = optionsResolved.wheelStepDelay ?? 0
+          const delayFactor = 1 + clamp(delay / 200, 0, 0.5) // 0..100ms → 1..1.5
+          const comp = Math.round(baseStep * delayFactor)
+          return Math.min(overscroll, comp)
         }
 
-        if (left < 0) {
-          deltaX = left // Scroll left
-        } else if (right > viewportWidth) {
-          deltaX = right - viewportWidth// Scroll right
+        const needY = top < 0 || bottom > viewportHeight
+        const needX = left < 0 || right > viewportWidth
+        const doHorizontalFirst = needX && needY && left < 0 // диагональ влево
+
+        const interAxisPause = (() => {
+          const base = optionsResolved.wheelStepDelayTri !== undefined
+            ? Math.max(0, Math.round(sampleTri(optionsResolved.wheelStepDelayTri)))
+            : (optionsResolved.wheelStepDelay !== undefined && optionsResolved.wheelStepDelay > 0
+              ? optionsResolved.wheelStepDelay
+              : 0)
+          if (base > 0) {
+            const jitter = 0.4 + Math.random() * 0.4
+            return Math.round(base * jitter)
+          }
+          return 0
+        })()
+
+        const doVerticalPhase = async (): Promise<void> => {
+          if (!needY) return
+          const deltaY = top < 0
+            ? (top - overscroll)
+            : ((bottom - viewportHeight) + overscroll)
+          await this.scroll({ y: deltaY }, optionsResolved)
+
+          const compAbs = computeVerticalComp()
+          const compY = top < 0 ? compAbs : -compAbs
+          if (compAbs > 0 && Math.random() < chance) {
+            await this.scroll({ y: compY }, optionsResolved)
+          }
+        }
+        const doHorizontalPhase = async (): Promise<void> => {
+          if (!needX) return
+          const deltaX = left < 0
+            ? (left - overscroll)
+            : ((right - viewportWidth) + overscroll)
+          await this.scroll({ x: deltaX }, optionsResolved)
         }
 
-        await this.scroll({ x: deltaX, y: deltaY }, optionsResolved)
+        if (doHorizontalFirst) {
+          await doHorizontalPhase()
+          if (interAxisPause > 0) await delay(interAxisPause)
+          await doVerticalPhase()
+        } else {
+          await doVerticalPhase()
+          if (interAxisPause > 0) await delay(interAxisPause)
+          await doHorizontalPhase()
+        }
       }
 
       try {
@@ -958,6 +1073,76 @@ export const createCursor = (
           behavior: scrollSpeed < 90 ? 'smooth' : undefined
         }))
       }
+
+      // Финальная подстройка: если элемент всё ещё не полностью виден,
+      // имитируем дополнительные «тики» колеса, чтобы он полностью попал в зону видимости.
+      const ensureFullyVisibleByWheel = async (): Promise<void> => {
+        const stepFromSpeed = (speed: number): number => clamp(speed, 8, 60)
+        const stepPx = (optionsResolved.wheelStepPx !== undefined && optionsResolved.wheelStepPx > 0)
+          ? optionsResolved.wheelStepPx
+          : stepFromSpeed(optionsResolved.scrollSpeed ?? 100)
+
+        // Не бесконечно — максимум 3 попытки доводки
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const { viewportWidth, viewportHeight } = await page.evaluate(() => ({
+            viewportWidth: document.body.clientWidth,
+            viewportHeight: document.body.clientHeight
+          }))
+          const box = await getElementBox(page, elem)
+
+          const topNow = box.y
+          const bottomNow = box.y + box.height
+          const leftNow = box.x
+          const rightNow = box.x + box.width
+          const needsUp = topNow < 0
+          const needsDown = bottomNow > viewportHeight
+          const needsLeft = leftNow < 0
+          const needsRight = rightNow > viewportWidth
+
+          if (!(needsUp || needsDown || needsLeft || needsRight)) break
+
+          const doHorizontalFirst = (needsLeft && (needsUp || needsDown))
+
+          const interAxisPause = (() => {
+            if (optionsResolved.wheelStepDelay !== undefined && optionsResolved.wheelStepDelay > 0) {
+              const base = optionsResolved.wheelStepDelay
+              const jitter = 0.4 + Math.random() * 0.4
+              return Math.round(base * jitter)
+            }
+            return 0
+          })()
+
+          const doVerticalPhase = async (): Promise<void> => {
+            if (!(needsUp || needsDown)) return
+            const miss = needsUp ? Math.abs(topNow) : (bottomNow - viewportHeight)
+            const baseTicks = Math.ceil(miss / stepPx)
+            const extra = Math.random() < 0.4 ? 1 : 0 // иногда «чуть больше, чем нужно»
+            const deltaY = (baseTicks + extra) * stepPx * (needsUp ? -1 : 1)
+            await this.scroll({ y: deltaY }, optionsResolved)
+          }
+          const doHorizontalPhase = async (): Promise<void> => {
+            if (!(needsLeft || needsRight)) return
+            const miss = needsLeft ? Math.abs(leftNow) : (rightNow - viewportWidth)
+            // По горизонтали не используем «колёсные» шаги. Берём дельту напрямую,
+            // добавляя небольшой «перебор» от scrollSpeed.
+            const extra = Math.random() < 0.4 ? stepFromSpeed(optionsResolved.scrollSpeed ?? 100) : 0
+            const deltaX = (miss + extra) * (needsLeft ? -1 : 1)
+            await this.scroll({ x: deltaX }, optionsResolved)
+          }
+
+          if (doHorizontalFirst) {
+            await doHorizontalPhase()
+            if (interAxisPause > 0) await delay(interAxisPause)
+            await doVerticalPhase()
+          } else {
+            await doVerticalPhase()
+            if (interAxisPause > 0) await delay(interAxisPause)
+            await doHorizontalPhase()
+          }
+        }
+      }
+
+      await ensureFullyVisibleByWheel()
     },
 
     /**
@@ -980,52 +1165,161 @@ export const createCursor = (
 
       const cdpClient = getCDPClient(page)
 
-      let deltaX = delta.x ?? 0
-      let deltaY = delta.y ?? 0
-      const xDirection = deltaX < 0 ? -1 : 1
-      const yDirection = deltaY < 0 ? -1 : 1
-
-      deltaX = Math.abs(deltaX)
-      deltaY = Math.abs(deltaY)
-
-      const largerDistanceDir = deltaX > deltaY ? 'x' : 'y'
-      const [largerDistance, shorterDistance] = largerDistanceDir === 'x' ? [deltaX, deltaY] : [deltaY, deltaX]
-
-      // Когда scrollSpeed < 90, число пикселей за один шаг прокрутки равно значению scrollSpeed. 1 — это максимально медленно (без добавления задержки), а 90 — уже довольно быстро.
-      // При значении > 90 масштабируем на всю оставшуюся дистанцию, так что при scrollSpeed=100 выполняется всего одно действие прокрутки.
+      // Helper: прокрутка по одной оси без диагонали
       const EXP_SCALE_START = 90 // выше этого ускоряемся (меньше шагов)
-      const largerDistanceScrollStep = scrollSpeed < EXP_SCALE_START
-        ? scrollSpeed
-        : scale(scrollSpeed, [EXP_SCALE_START, 100], [EXP_SCALE_START, largerDistance])
+      const scrollAxis = async (axis: 'x' | 'y', signedAmount: number): Promise<void> => {
+        let amount = Math.abs(signedAmount)
+        if (amount === 0) return
+        const direction = signedAmount < 0 ? -1 : 1
 
-      const numSteps = Math.floor(largerDistance / largerDistanceScrollStep)
-      const largerDistanceRemainder = largerDistance % largerDistanceScrollStep
-      const shorterDistanceScrollStep = Math.floor(shorterDistance / numSteps)
-      const shorterDistanceRemainder = shorterDistance % numSteps
-
-      for (let i = 0; i < numSteps; i++) {
-        let longerDistanceDelta = largerDistanceScrollStep
-        let shorterDistanceDelta = shorterDistanceScrollStep
-        if (i === numSteps - 1) {
-          longerDistanceDelta += largerDistanceRemainder
-          shorterDistanceDelta += shorterDistanceRemainder
+        // Если горизонтальная прокрутка: предварительно уводим указатель вниз к соответствующему краю
+        let bottomY: number | undefined
+        let startX: number | undefined
+        if (axis === 'x') {
+          const { viewportWidth, viewportHeight } = await page.evaluate(() => ({
+            viewportWidth: document.body.clientWidth,
+            viewportHeight: document.body.clientHeight
+          }))
+          const margin = 6
+          bottomY = viewportHeight + 4
+          startX = direction > 0 ? margin : Math.max(margin, viewportWidth - margin)
+          // Переместить указатель к стартовой точке «ползунка»
+          const pathOpts = {
+            useTimestamps: defaultOptions?.moveTo?.useTimestamps ?? true,
+            moveSpeed: defaultOptions?.moveTo?.moveSpeed
+          } satisfies PathOptions
+          await moveMouse({ x: startX, y: bottomY }, pathOpts)
+          // Небольшая рандомная пауза перед «перетаскиванием»
+          const prePause = 40 + Math.round(Math.random() * 140) // 40..180ms
+          await delay(prePause)
         }
-        let [deltaX, deltaY] = largerDistanceDir === 'x'
-          ? [longerDistanceDelta, shorterDistanceDelta]
-          : [shorterDistanceDelta, longerDistanceDelta]
-        deltaX = deltaX * xDirection
-        deltaY = deltaY * yDirection
 
-        await cdpClient.send('Input.dispatchMouseEvent', {
-          type: 'mouseWheel',
-          deltaX,
-          deltaY,
-          x: location.x,
-          y: location.y
-        } satisfies Protocol.Input.DispatchMouseEventRequest)
+        // Выбор шага
+        // - По горизонтали: НЕ используем параметры колеса (wheelStepPx/Delay).
+        //   Шаг берём только из scrollSpeed (плавная прокрутка без «тиков»).
+        // - По вертикали: как раньше — приоритет дискретного wheelStepPx, иначе из scrollSpeed.
+        let step = scrollSpeed < EXP_SCALE_START
+          ? scrollSpeed
+          : scale(scrollSpeed, [EXP_SCALE_START, 100], [EXP_SCALE_START, amount])
+        if (axis === 'y' && optionsResolved.wheelStepPx !== undefined && optionsResolved.wheelStepPx > 0) {
+          step = Math.min(amount, optionsResolved.wheelStepPx)
+        }
+        step = Math.max(1, Math.floor(step))
+
+        const numSteps = Math.max(1, Math.floor(amount / step))
+        const remainder = amount % step
+
+        for (let i = 0; i < numSteps; i++) {
+          let d = step
+          if (i === numSteps - 1) d += remainder
+          const deltaX = axis === 'x' ? direction * d : 0
+          const deltaY = axis === 'y' ? direction * d : 0
+
+          await cdpClient.send('Input.dispatchMouseEvent', {
+            type: 'mouseWheel',
+            deltaX,
+            deltaY,
+            x: location.x,
+            y: location.y
+          } satisfies Protocol.Input.DispatchMouseEventRequest)
+
+          // Пауза между шагами:
+          // - По вертикали — сохраняем «колёсные» нелинейные задержки.
+          // - По горизонтали — не используем показатели колеса → без колёсных пауз.
+          if (axis === 'y') {
+            const baseDelay = optionsResolved.wheelStepDelayTri !== undefined
+              ? Math.max(0, Math.round(sampleTri(optionsResolved.wheelStepDelayTri)))
+              : (optionsResolved.wheelStepDelay !== undefined
+                ? Math.max(0, optionsResolved.wheelStepDelay)
+                : Math.max(0, Math.round(120 * (100 - scrollSpeed) / 100)))
+
+            if (baseDelay > 0) {
+              const t = numSteps > 1 ? i / (numSteps - 1) : 0 // 0..1 по длине серии
+              const accel = 1 - 0.4 * Math.sin(Math.PI * t)   // быстрее в середине серии
+              const jitter = 0.85 + Math.random() * 0.3       // 0.85..1.15
+
+              // «Порции» вращения колеса: добавляем микропаузу на «перехват» пальца
+              const groupMin = 3
+              const groupMax = 5
+              const groupSize = Math.min(numSteps, groupMin + Math.floor(Math.random() * (groupMax - groupMin + 1)))
+              const isGroupBoundary = ((i + 1) % groupSize === 0) && (i < numSteps - 1)
+              const regrip = isGroupBoundary ? Math.round(baseDelay * 0.8) : 0
+
+              const tickDelay = Math.max(0, Math.round(baseDelay * accel * jitter) + regrip)
+              if (tickDelay > 0) await delay(tickDelay)
+            }
+          }
+        }
+
+        // После горизонтальной прокрутки — «отпускаем» ползунок: указатель остаётся внизу,
+        // смещаем его по оси X пропорционально величине прокрутки.
+        if (axis === 'x' && bottomY !== undefined && startX !== undefined) {
+          const { viewportWidth, docWidth, scrollPositionLeft } = await page.evaluate(() => ({
+            viewportWidth: document.body.clientWidth,
+            docWidth: document.body.scrollWidth,
+            scrollPositionLeft: window.scrollX
+          }))
+          const margin = 6
+          const trackLeft = margin
+          const trackRight = Math.max(trackLeft + 1, viewportWidth - margin)
+          const trackWidth = trackRight - trackLeft
+          const maxScrollLeft = Math.max(0, docWidth - viewportWidth)
+
+          let endX: number
+          if (maxScrollLeft > 0) {
+            const norm = Math.min(1, Math.max(0, scrollPositionLeft / maxScrollLeft))
+            const approxThumb = Math.max(20, Math.round(trackWidth * (viewportWidth / Math.max(docWidth, 1))))
+            const jitter = Math.max(6, Math.round(approxThumb * 0.3))
+            const centerX = trackLeft + norm * trackWidth
+            const randOffset = (Math.random() * 2 - 1) * jitter // [-jitter, +jitter]
+            endX = Math.round(Math.min(trackRight - jitter, Math.max(trackLeft + jitter, centerX + randOffset)))
+          } else {
+            // Горизонтальная прокрутка недоступна — выбираем случайный X в нижней полосе
+            endX = Math.round(trackLeft + Math.random() * trackWidth)
+          }
+
+          // Телепортируем указатель в конечную нижнюю точку (без анимации пути)
+          await cdpClient.send('Input.dispatchMouseEvent', {
+            type: 'mouseMoved',
+            x: endX,
+            y: bottomY
+          } satisfies Protocol.Input.DispatchMouseEventRequest)
+          location = { x: endX, y: bottomY }
+        }
       }
 
-      await delay(optionsResolved.scrollDelay)
+      // Диагональ влево: сначала X (<0), затем Y; иначе — сначала Y, затем X
+      const dx = delta.x ?? 0
+      const dy = delta.y ?? 0
+      const diagonal = dx !== 0 && dy !== 0
+      const doHorizontalFirst = diagonal && dx < 0
+
+      const interAxisPause = (() => {
+        const base = optionsResolved.wheelStepDelayTri !== undefined
+          ? Math.max(0, Math.round(sampleTri(optionsResolved.wheelStepDelayTri)))
+          : (optionsResolved.wheelStepDelay !== undefined && optionsResolved.wheelStepDelay > 0
+            ? optionsResolved.wheelStepDelay
+            : 0)
+        if (base > 0) {          const jitter = 0.4 + Math.random() * 0.4 // 0.4..0.8
+          return Math.round(base * jitter)
+        }
+        return 0
+      })()
+
+      if (doHorizontalFirst) {
+        await scrollAxis('x', dx)
+        if (interAxisPause > 0) await delay(interAxisPause)
+        await scrollAxis('y', dy)
+      } else {
+        await scrollAxis('y', dy)
+        if (interAxisPause > 0) await delay(interAxisPause)
+        await scrollAxis('x', dx)
+      }
+
+      const endScrollDelay = optionsResolved.scrollDelayTri !== undefined
+        ? Math.round(sampleTri(optionsResolved.scrollDelayTri))
+        : optionsResolved.scrollDelay
+      await delay(endScrollDelay)
     },
 
     /** Прокручивает к указанной точке/краю. */
@@ -1112,6 +1406,16 @@ export const createCursor = (
         elem = selector
       }
       return elem
+    }
+    ,
+    /** Уводит курсор к верхней кромке (y=0) на заданный или случайный x. */
+    async parkTop (x?: number): Promise<void> {
+      const targetId: string = (page.target() as any)._targetId
+      const window = await getCDPClient(page).send('Browser.getWindowForTarget', { targetId })
+      const width = window.bounds.width ?? 0
+      const margin = 4
+      const randX = Math.max(margin, Math.min(width - margin, Math.round(Math.random() * (width - 2 * margin) + margin)))
+      await this.moveTo({ x: x !== undefined ? x : randX, y: 0 })
     }
   }
   // ======================================================================================
