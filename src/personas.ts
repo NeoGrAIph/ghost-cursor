@@ -3,7 +3,9 @@ export interface Tri { min: number, mode: number, max: number }
 export interface Range { min: number, max: number }
 
 export interface Persona {
-  id: string; label: string; notes?: string
+  id: string
+  label: string
+  notes?: string
   fitts: { a_ms: number, b_ms_per_bit: number }
   dwell: Tri // hesitate (пауза перед кликом, мс)
   waitForClick: Range // промежуток между down/up, мс
@@ -29,17 +31,20 @@ export function mulberry32 (seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
-export function uniform (rng: () => number, a: number, b: number) { return a + (b - a) * rng() }
-export function tri (rng: () => number, t: Tri) {
+export function uniform (rng: () => number, a: number, b: number): number { return a + (b - a) * rng() }
+export function tri (rng: () => number, t: Tri): number {
   const { min, mode, max } = t; const u = rng()
   const p = (mode - min) / (max - min)
   return u < p
     ? min + Math.sqrt(u * (max - min) * (mode - min))
     : max - Math.sqrt((1 - u) * (max - min) * (max - mode))
 }
-export function randint (rng: () => number, a: number, b: number) { return Math.floor(uniform(rng, a, b + 1)) }
+export function randint (rng: () => number, a: number, b: number): number { return Math.floor(uniform(rng, a, b + 1)) }
 
-function hashString (s: string) { return [...s].reduce((a, c) => (a * 131 + c.charCodeAt(0)) >>> 0, 0) || 1 }
+function hashString (s: string): number {
+  const v = [...s].reduce((a, c) => (a * 131 + c.charCodeAt(0)) >>> 0, 0)
+  return v === 0 ? 1 : v
+}
 
 // ---------- Каталог персон (v1) ----------
 export const PERSONAS: Record<string, Persona> = {
@@ -154,11 +159,37 @@ export const PERSONAS: Record<string, Persona> = {
 }
 
 // ---------- Утилиты Фиттса + компиляция опций ----------
-export function fittsMT (D: number, W: number, a: number, b: number) {
+export function fittsMT (D: number, W: number, a: number, b: number): number {
   return a + b * (Math.log2(D / W + 1))
 }
 
-export function compileOptions (persona: Persona, rng: () => number, D: number, W: number) {
+export interface CompiledOptions {
+  move: {
+    paddingPercentage: number
+    moveDelay: number
+    randomizeMoveDelay: boolean
+    overshootThreshold: number
+    maxTries: number
+  }
+  click: {
+    hesitate: number
+    waitForClick: number
+    moveDelay: number
+  }
+  scroll: {
+    scrollSpeed: number
+    scrollDelay: number
+  }
+  path: {
+    spreadOverride: number
+    useTimestamps: boolean
+  }
+  meta: {
+    targetMT: number
+  }
+}
+
+export function compileOptions (persona: Persona, rng: () => number, D: number, W: number): CompiledOptions {
   const dwell = Math.round(tri(rng, persona.dwell))
   const wfc = Math.round(uniform(rng, persona.waitForClick.min, persona.waitForClick.max))
   const padding = Math.round(tri(rng, persona.padding_pct))
@@ -176,8 +207,8 @@ export function compileOptions (persona: Persona, rng: () => number, D: number, 
     scroll: { scrollSpeed, scrollDelay },
     path: { spreadOverride: spread, useTimestamps: true },
     meta: { targetMT }
-  } as const
+  }
 }
 
 // Сахар: подготовить RNG по sessionId
-export function rngFromSession (sessionId: string) { return mulberry32(hashString(sessionId)) }
+export function rngFromSession (sessionId: string): () => number { return mulberry32(hashString(sessionId)) }
