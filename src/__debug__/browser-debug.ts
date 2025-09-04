@@ -71,7 +71,7 @@ puppeteer.launch({ headless: false }).then(async (browser) => {
   const performActions = async (): Promise<void> => {
     await cursor.click('#box1')
 
-    await cursor.click('#box2', { moveDelay: 20000 })
+    await cursor.click('#box2', { moveDelay: 2000 })
 
     await cursor.click('#box3')
 
