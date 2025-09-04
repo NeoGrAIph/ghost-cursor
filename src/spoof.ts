@@ -1138,3 +1138,4 @@ export const createCursor = (
   * Стандарт, Внимательный, Быстрый, Неуверенный, Скроллер, Торопливый
   */
 export { PERSONAS, compileOptions, rngFromSession } from './personas'
+export { createPersonaCursor } from './createPersonaCursor'
