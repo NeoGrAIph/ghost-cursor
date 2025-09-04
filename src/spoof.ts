@@ -1010,8 +1010,8 @@ export const createCursor = (
           const base = optionsResolved.wheelStepDelayTri !== undefined
             ? Math.max(0, Math.round(sampleTri(optionsResolved.wheelStepDelayTri)))
             : (optionsResolved.wheelStepDelay !== undefined && optionsResolved.wheelStepDelay > 0
-              ? optionsResolved.wheelStepDelay
-              : 0)
+                ? optionsResolved.wheelStepDelay
+                : 0)
           if (base > 0) {
             const jitter = 0.4 + Math.random() * 0.4
             return Math.round(base * jitter)
@@ -1168,7 +1168,7 @@ export const createCursor = (
       // Helper: прокрутка по одной оси без диагонали
       const EXP_SCALE_START = 90 // выше этого ускоряемся (меньше шагов)
       const scrollAxis = async (axis: 'x' | 'y', signedAmount: number): Promise<void> => {
-        let amount = Math.abs(signedAmount)
+        const amount = Math.abs(signedAmount)
         if (amount === 0) return
         const direction = signedAmount < 0 ? -1 : 1
 
@@ -1230,13 +1230,13 @@ export const createCursor = (
             const baseDelay = optionsResolved.wheelStepDelayTri !== undefined
               ? Math.max(0, Math.round(sampleTri(optionsResolved.wheelStepDelayTri)))
               : (optionsResolved.wheelStepDelay !== undefined
-                ? Math.max(0, optionsResolved.wheelStepDelay)
-                : Math.max(0, Math.round(120 * (100 - scrollSpeed) / 100)))
+                  ? Math.max(0, optionsResolved.wheelStepDelay)
+                  : Math.max(0, Math.round(120 * (100 - scrollSpeed) / 100)))
 
             if (baseDelay > 0) {
               const t = numSteps > 1 ? i / (numSteps - 1) : 0 // 0..1 по длине серии
-              const accel = 1 - 0.4 * Math.sin(Math.PI * t)   // быстрее в середине серии
-              const jitter = 0.85 + Math.random() * 0.3       // 0.85..1.15
+              const accel = 1 - 0.4 * Math.sin(Math.PI * t) // быстрее в середине серии
+              const jitter = 0.85 + Math.random() * 0.3 // 0.85..1.15
 
               // «Порции» вращения колеса: добавляем микропаузу на «перехват» пальца
               const groupMin = 3
@@ -1298,9 +1298,10 @@ export const createCursor = (
         const base = optionsResolved.wheelStepDelayTri !== undefined
           ? Math.max(0, Math.round(sampleTri(optionsResolved.wheelStepDelayTri)))
           : (optionsResolved.wheelStepDelay !== undefined && optionsResolved.wheelStepDelay > 0
-            ? optionsResolved.wheelStepDelay
-            : 0)
-        if (base > 0) {          const jitter = 0.4 + Math.random() * 0.4 // 0.4..0.8
+              ? optionsResolved.wheelStepDelay
+              : 0)
+        if (base > 0) {
+          const jitter = 0.4 + Math.random() * 0.4 // 0.4..0.8
           return Math.round(base * jitter)
         }
         return 0
@@ -1406,8 +1407,7 @@ export const createCursor = (
         elem = selector
       }
       return elem
-    }
-    ,
+    },
     /** Уводит курсор к верхней кромке (y=0) на заданный или случайный x. */
     async parkTop (x?: number): Promise<void> {
       const targetId: string = (page.target() as any)._targetId
